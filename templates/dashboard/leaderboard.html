@@ -1,0 +1,184 @@
+{% extends "dashboard/base.html" %}
+{% load tz %}
+
+{% block title %}Leaderboard – {{ event.event_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ================= WRAPPER ================= */
+.lb-wrapper{
+    max-width:1400px;
+    margin:auto;
+    padding:120px 5% 80px;
+}
+
+/* ================= HEADER ================= */
+.lb-header{
+    text-align:center;
+    margin-bottom:40px;
+}
+.lb-header h1{
+    font-family:Orbitron,sans-serif;
+    color:#00eaff;
+    font-size:2.4rem;
+}
+.lb-header p{
+    color:#a8f6ff;
+    opacity:.85;
+}
+
+/* ================= FREEZE BANNER ================= */
+.freeze-banner{
+    max-width:520px;
+    margin:0 auto 45px;
+    padding:14px 24px;
+    border-radius:22px;
+    text-align:center;
+    font-weight:800;
+    letter-spacing:.8px;
+    background:rgba(0,180,255,.15);
+    border:1px solid #00eaff;
+    color:#00eaff;
+}
+
+/* ================= GRID ================= */
+.lb-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+    gap:32px;
+}
+
+/* ================= CARD ================= */
+.lb-card{
+    position:relative;
+    background:linear-gradient(135deg,rgba(0,20,30,.75),rgba(0,30,45,.75));
+    border:1px solid rgba(0,255,255,.35);
+    border-radius:26px;
+    padding:34px 30px;
+    box-shadow:0 0 28px rgba(0,234,255,.18);
+    transition:.3s;
+}
+.lb-card:hover{
+    transform:translateY(-6px);
+    box-shadow:0 0 40px rgba(0,234,255,.35);
+}
+
+/* ================= FIRST BLOOD ================= */
+.fb-ribbon{
+    position:absolute;
+    top:16px;
+    left:-10px;
+    padding:7px 16px;
+    border-radius:0 18px 18px 0;
+    background:linear-gradient(135deg,#ff003c,#ff7a00);
+    color:#000;
+    font-weight:900;
+    font-size:.75rem;
+    letter-spacing:1px;
+    box-shadow:0 0 18px rgba(255,90,0,.6);
+}
+.fb-ribbon::after{
+    content:"";
+    position:absolute;
+    left:0;
+    bottom:-8px;
+    border-top:8px solid rgba(0,0,0,.5);
+    border-left:8px solid transparent;
+}
+
+/* ================= RANK ================= */
+.rank-badge{
+    font-size:2.2rem;
+    font-weight:900;
+    margin-bottom:14px;
+}
+.rank-1{color:#ffd700;}
+.rank-2{color:#c0c0c0;}
+.rank-3{color:#cd7f32;}
+
+/* ================= USER ================= */
+.lb-user{
+    font-size:1.35rem;
+    color:#00eaff;
+    margin-bottom:18px;
+}
+
+/* ================= META ================= */
+.lb-meta{
+    font-size:.85rem;
+    color:#a8f6ff;
+    margin-bottom:8px;
+}
+
+/* ================= POINTS ================= */
+.lb-points{
+    margin-top:18px;
+    font-size:1.6rem;
+    font-weight:800;
+    color:#00ff99;
+    text-align:right;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="lb-wrapper">
+
+    <!-- HEADER -->
+    <div class="lb-header">
+        <h1>🏆 {{ event.event_name }} Leaderboard</h1>
+        <p>Only correct submissions • Ranked by points</p>
+    </div>
+
+    <!-- FREEZE / PRACTICE BANNER -->
+    {% if is_frozen %}
+    <div class="freeze-banner">
+        ❄ Leaderboard Frozen — Practice Mode Enabled
+    </div>
+    {% endif %}
+
+    <!-- LEADERBOARD -->
+    <div class="lb-grid">
+        {% for p in leaderboard %}
+        <div class="lb-card">
+
+            {% if forloop.counter == 1 %}
+                <div class="fb-ribbon">FIRST BLOOD</div>
+            {% endif %}
+
+            <div class="rank-badge
+                {% if forloop.counter == 1 %}rank-1
+                {% elif forloop.counter == 2 %}rank-2
+                {% elif forloop.counter == 3 %}rank-3{% endif %}">
+                {% if forloop.counter == 1 %}🥇
+                {% elif forloop.counter == 2 %}🥈
+                {% elif forloop.counter == 3 %}🥉
+                {% else %}#{{ forloop.counter }}{% endif %}
+            </div>
+
+            <div class="lb-user">
+                {{ p.user__username }}
+            </div>
+
+            <div class="lb-meta">
+                🥇 First Flag:
+                <strong>{{ p.first_flag|localtime|date:"d M Y, H:i" }}</strong>
+            </div>
+
+            <div class="lb-meta">
+                ⏱ Last Flag:
+                <strong>{{ p.last_flag|localtime|date:"d M Y, H:i" }}</strong>
+            </div>
+
+            <div class="lb-points">
+                {{ p.total_points }} pts
+            </div>
+
+        </div>
+        {% empty %}
+            <p style="opacity:.6;">No submissions yet.</p>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}

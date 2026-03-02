@@ -1,0 +1,323 @@
+{% extends 'home/base.html' %}
+
+{% block title %}Hack!t{% endblock %}
+
+
+{% block extra_css %}
+<style>
+    /* HERO */
+    .hero {
+        text-align: center;
+        padding-top: 90px;
+        padding-bottom: 150px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .glitch-wrapper {
+        max-width: 90%;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+    }
+
+    .glitch {
+        font-size: 3.3rem;
+        font-family: "Orbitron";
+        position: relative;
+        white-space: nowrap;
+        line-height: 1.2;
+        text-shadow: 0 0 12px #00eaff;
+    }
+
+    .glitch::before,
+    .glitch::after {
+        content: attr(data-text);
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        white-space: nowrap;
+    }
+
+    .glitch::before {
+        color: #ff00d4;
+        animation: gl1 2s infinite alternate;
+    }
+
+    .glitch::after {
+        color: #00ffee;
+        animation: gl2 1.6s infinite alternate;
+    }
+
+    @keyframes gl1 {
+        0% {
+            transform: translate(0, 0);
+        }
+
+        25% {
+            transform: translate(-3px, -2px);
+        }
+
+        50% {
+            transform: translate(3px, 1px);
+        }
+
+        75% {
+            transform: translate(-2px, 2px);
+        }
+    }
+
+    @keyframes gl2 {
+        0% {
+            transform: translate(0, 0);
+        }
+
+        25% {
+            transform: translate(2px, 3px);
+        }
+
+        50% {
+            transform: translate(-1px, -2px);
+        }
+
+        75% {
+            transform: translate(3px, -1px);
+        }
+    }
+
+    .hero p {
+        margin-top: 12px;
+        color: #d6faff;
+    }
+
+    .cta-button {
+        margin-top: 30px;
+        padding: 15px 40px;
+        border: 2px solid #00eaff;
+        color: #00eaff;
+        background: transparent;
+        font-size: 1.2rem;
+        transition: 0.3s;
+    }
+
+    .cta-button:hover {
+        background: #00eaff;
+        color: #000;
+        box-shadow: 0 0 20px #00eaff;
+    }
+
+    /* SCROLLER */
+    .glitch-scroll {
+        white-space: nowrap;
+        overflow: hidden;
+        border-top: 1px solid rgba(0, 255, 255, 0.2);
+        border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+        padding: 12px 0;
+    }
+
+    .glitch-scroll span {
+        display: inline-block;
+        padding-left: 100%;
+        animation: scrollText 18s linear infinite;
+    }
+
+    @keyframes scrollText {
+        0% {
+            transform: translateX(0);
+        }
+
+        100% {
+            transform: translateX(-100%);
+        }
+    }
+
+    /* GoPwnIt CARDS */
+    .offer-section {
+        padding: 100px 10%;
+        text-align: center;
+    }
+
+    .offer-section h2 {
+        font-family: Orbitron;
+        font-size: 2.6rem;
+        margin-bottom: 50px;
+        color: #00eaff;
+    }
+
+    .gopwnit-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+        gap: 35px;
+        justify-content: center;
+    }
+
+    .gopwnit-card {
+        padding: 35px;
+        border-radius: 18px;
+        background: linear-gradient(145deg, rgba(0, 20, 30, 0.4), rgba(0, 35, 45, 0.3));
+        border: 1.8px solid rgba(0, 255, 255, 0.25);
+        box-shadow: 0 0 20px rgba(0, 255, 255, 0.08);
+        transition: 0.3s;
+        text-align: left;
+    }
+
+    .gopwnit-card:hover {
+        transform: translateY(-12px);
+        border-color: #00eaff;
+        box-shadow: 0 0 25px #00eaff;
+    }
+
+    .card-icon {
+        height: 48px;
+        width: 48px;
+        background: rgba(0, 255, 255, 0.12);
+        border: 1.5px solid rgba(0, 255, 255, 0.35);
+        border-radius: 12px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .card-icon i {
+        font-size: 1.4rem;
+    }
+
+    .gopwnit-card h3 {
+        font-family: Orbitron;
+        font-size: 1.4rem;
+        color: #d5faff;
+        margin-bottom: 10px;
+    }
+
+    .gopwnit-card p {
+        font-size: 0.95rem;
+        color: #8ff8ff;
+        line-height: 1.5rem;
+    }
+
+    /* FEATURES (YOU ASKED FOR THIS) */
+    .features-section {
+        padding: 100px 10%;
+        text-align: center;
+    }
+
+    .features-section h2 {
+        font-family: Orbitron;
+        font-size: 2.6rem;
+        margin-bottom: 50px;
+        color: #00eaff;
+    }
+
+    .features-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 35px;
+        justify-content: center;
+    }
+
+    .feature-box {
+        padding: 30px;
+        border-radius: 12px;
+        background: rgba(0, 255, 255, 0.05);
+        border: 2px solid rgba(0, 255, 255, 0.25);
+        transition: 0.3s;
+    }
+
+    .feature-box:hover {
+        transform: translateY(-12px);
+        box-shadow: 0 0 25px #00eaff;
+        border-color: #00eaff;
+    }
+
+    /* FOOTER */
+    footer {
+        margin-top: 60px;
+        padding: 25px 10%;
+        background: #000;
+        border-top: 1px solid rgba(0, 255, 255, 0.2);
+        text-align: center;
+        color: #7feaff;
+        font-size: 0.9rem;
+    }
+
+    footer a {
+        color: #9aefff;
+        margin: 0 10px;
+        text-decoration: none;
+    }
+
+    footer a:hover {
+        color: #00eaff;
+    }
+</style>
+
+
+{% endblock %}
+
+{% block content %}
+<!-- HERO -->
+<div class="hero">
+    <div class="glitch-wrapper">
+        <h1 class="glitch" data-text="HACK. LEARN. DOMINATE.">HACK. LEARN. DOMINATE.</h1>
+    </div>
+    <p>Compete with the best hackers. Capture the Flag. Earn glory.</p>
+    <a href="{% url 'login' %}" class="cta-link">
+        <button class="cta-button">Start Playing</button>
+    </a>
+</div>
+
+<!-- SCROLLER -->
+<div class="glitch-scroll">
+    <span>⚔ CTF • CRYPTO • FORENSICS • REVERSING • HACK!T • HACK • LEARN • DOMINATE • </span>
+</div>
+
+<!-- OFFERINGS -->
+<section class="offer-section">
+    <h2>Our Offerings</h2>
+    <div class="gopwnit-card-grid">
+        <div class="gopwnit-card">
+            <div class="card-icon"><i>👨‍💻</i></div>
+            <h3>Lab Setups</h3>
+            <p>Full hacking labs for real-world simulation.</p>
+        </div>
+        <div class="gopwnit-card">
+            <div class="card-icon"><i>🔥</i></div>
+            <h3>CTF Base</h3>
+            <p>Challenges for beginners to experts.</p>
+        </div>
+        <div class="gopwnit-card">
+            <div class="card-icon"><i>💻</i></div>
+            <h3>Master Security</h3>
+            <p>Learn offensive security the right way.</p>
+        </div>
+        <div class="gopwnit-card">
+            <div class="card-icon"><i>🤖</i></div>
+            <h3>CTF Solver</h3>
+            <p>AI-powered solver for tough challenges.</p>
+        </div>
+    </div>
+</section>
+
+<!-- FEATURES SECTION (RESTORED) -->
+<section class="features-section">
+    <h2>Platform Features</h2>
+    <div class="features-grid">
+        <div class="feature-box">🔐 Cryptography Challenges</div>
+        <div class="feature-box">🕵️ Forensics Analysis</div>
+        <div class="feature-box">🧩 Reverse Engineering</div>
+        <div class="feature-box">🛡 Web Exploitation</div>
+        <div class="feature-box">⚔ Live Leaderboards</div>
+        <div class="feature-box">🔥 Weekly Hack Events</div>
+    </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+    © 2025 Hack!t — Built for Hackers, by Hackers.
+    <br><br>
+    <a href="#">Privacy</a> | <a href="#">Terms</a> | <a href="#">Support</a>
+</footer>
+{% endblock %}

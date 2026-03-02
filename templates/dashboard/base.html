@@ -1,0 +1,252 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Hack!t{% endblock %}</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap"
+        rel="stylesheet">
+
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            color: #00eaff;
+            font-family: "Share Tech Mono", monospace;
+            overflow-x: hidden;
+        }
+
+        /* MATRIX */
+        #matrix {
+            position: fixed;
+            inset: 0;
+            z-index: -2;
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.62);
+            z-index: -1;
+        }
+
+        /* ================= NAVBAR ================= */
+        .gm-nav {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 85%;
+            height: 75px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 40px;
+            background: rgba(0, 20, 30, 0.55);
+            border: 1px solid rgba(0, 255, 255, 0.35);
+            backdrop-filter: blur(12px);
+            border-radius: 60px;
+            box-shadow: 0 0 22px rgba(0, 255, 255, 0.25);
+            z-index: 999;
+        }
+
+        .gm-logo-box {
+            height: 65px;
+            width: 65px;
+            border-radius: 50%;
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .gm-logo-img {
+            height: 45px;
+            width: 45px;
+            border-radius: 50%;
+        }
+
+        .gm-center-links {
+            display: flex;
+            gap: 50px;
+        }
+
+        .gm-center-links a {
+            text-decoration: none;
+            color: #dffaff;
+            font-size: 1.15rem;
+            transition: 0.3s;
+        }
+
+        .gm-center-links a:hover {
+            color: #00eaff;
+            text-shadow: 0 0 10px #00eaff;
+        }
+
+        /* USER MENU */
+        .user-box {
+            padding: 12px 22px;
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid #00eaff;
+            border-radius: 25px;
+            color: #00eaff;
+            cursor: pointer;
+            position: relative;
+            user-select: none;
+        }
+
+        .user-menu {
+            position: absolute;
+            top: 55px;
+            right: 0;
+            background: rgba(0, 20, 30, 0.95);
+            border: 1px solid #00eaff;
+            border-radius: 12px;
+            width: 160px;
+            display: none;
+            flex-direction: column;
+        }
+
+        .user-menu a {
+            padding: 12px 18px;
+            color: #9ffaff;
+            text-decoration: none;
+        }
+
+        .user-menu a:hover {
+            background: rgba(0, 255, 255, 0.18);
+            color: #00eaff;
+        }
+
+        .user-menu.show {
+            display: flex;
+        }
+
+        .right-strip {
+            position: fixed;
+            right: 0;
+            top: 210px;
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            padding: 10px;
+            color: #00eaff;
+            opacity: 0.8;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+        }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body>
+
+    <!-- MATRIX BACKGROUND -->
+    <canvas id="matrix"></canvas>
+    <div class="overlay"></div>
+
+    <!-- ================= NAVBAR ================= -->
+    <nav class="gm-nav">
+
+        <div class="gm-logo-box">
+            <img src="{% static 'images/glitchmafia.png' %}" class="gm-logo-img">
+        </div>
+
+        <div class="gm-center-links">
+            {% if in_event %}
+            <a href="{% url 'event_challenges' event.id %}">Challenges</a>
+            <a href="{% url 'event_leaderboard' event.id %}">Leaderboard</a>
+            <a href="{% url 'event_detail' event.id %}">Announcements</a>
+            <a href="{% url 'dashboard' %}">Exit Event</a>
+            {% else %}
+            <a href="{% url 'dashboard' %}">Home</a>
+            <a href="{% url 'dashboard' %}#events">Events</a>
+            <a href="{% url 'host_event' %}">Host Event</a>
+            {% endif %}
+        </div>
+
+        {% if user.is_authenticated %}
+        <div class="user-box" id="userBox">
+            {{ user.username }} ▼
+            <div class="user-menu" id="userMenu">
+                <a href="{% url 'user_profile' %}">My Profile</a>
+                <a href="{% url 'logout' %}">Logout</a>
+            </div>
+        </div>
+        {% else %}
+        <div class="user-box">
+            <a href="{% url 'login' %}" style="color:#00eaff;text-decoration:none;">Login</a>
+        </div>
+        {% endif %}
+
+    </nav>
+
+    <div class="right-strip">HACK!T — CYBERSECURITY CTF</div>
+
+    {% block content %}{% endblock %}
+
+    <!-- ================= JAVASCRIPT ================= -->
+    <script>
+        /* USER MENU */
+        const userBox = document.getElementById("userBox");
+        const userMenu = document.getElementById("userMenu");
+
+        if (userBox && userMenu) {
+            userBox.addEventListener("click", e => {
+                e.stopPropagation();
+                userMenu.classList.toggle("show");
+            });
+            document.addEventListener("click", () => userMenu.classList.remove("show"));
+        }
+
+        /* MATRIX RESPONSIVE */
+        const canvas = document.getElementById("matrix");
+        const ctx = canvas.getContext("2d");
+
+        const chars = "01<>/*=+{}[]$#%&@";
+        const fontSize = 16;
+        let columns = 0;
+        let drops = [];
+
+        function resizeMatrix() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            columns = Math.floor(canvas.width / fontSize);
+            drops = Array.from({ length: columns }, () =>
+                Math.floor(Math.random() * canvas.height / fontSize)
+            );
+        }
+
+        window.addEventListener("resize", resizeMatrix);
+        resizeMatrix();
+
+        function drawMatrix() {
+            ctx.fillStyle = "rgba(0,0,0,0.08)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = "#00eaff";
+            ctx.font = fontSize + "px monospace";
+
+            for (let i = 0; i < drops.length; i++) {
+                const char = chars[Math.floor(Math.random() * chars.length)];
+                ctx.fillText(char, i * fontSize, drops[i] * fontSize);
+
+                if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+
+        setInterval(drawMatrix, 35);
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

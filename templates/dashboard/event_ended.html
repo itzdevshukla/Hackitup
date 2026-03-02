@@ -1,0 +1,621 @@
+{% extends "dashboard/base.html" %}
+{% block title %}Event Ended – {{ event.event_name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ================= GLOBAL ================= */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    overflow-x: hidden;
+    background: #0a0e27;
+    position: relative;
+}
+
+/* ================= ANIMATED BACKGROUND ================= */
+.bg-animation {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    overflow: hidden;
+}
+
+.bg-animation::before {
+    content: '';
+    position: absolute;
+    width: 200%;
+    height: 200%;
+    background: 
+        radial-gradient(circle at 20% 30%, rgba(0, 234, 255, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 80% 70%, rgba(255, 215, 0, 0.06) 0%, transparent 40%),
+        radial-gradient(circle at 40% 80%, rgba(192, 192, 192, 0.05) 0%, transparent 40%);
+    animation: bgMove 20s ease-in-out infinite;
+}
+
+@keyframes bgMove {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    50% { transform: translate(-50px, -50px) rotate(5deg); }
+}
+
+/* Floating particles */
+.particle {
+    position: absolute;
+    background: rgba(0, 234, 255, 0.4);
+    border-radius: 50%;
+    animation: float-up 15s infinite;
+}
+
+.particle:nth-child(1) { width: 4px; height: 4px; left: 10%; animation-delay: 0s; }
+.particle:nth-child(2) { width: 6px; height: 6px; left: 25%; animation-delay: 2s; }
+.particle:nth-child(3) { width: 3px; height: 3px; left: 40%; animation-delay: 4s; }
+.particle:nth-child(4) { width: 5px; height: 5px; left: 60%; animation-delay: 1s; }
+.particle:nth-child(5) { width: 4px; height: 4px; left: 75%; animation-delay: 3s; }
+.particle:nth-child(6) { width: 6px; height: 6px; left: 90%; animation-delay: 5s; }
+
+@keyframes float-up {
+    0% { transform: translateY(100vh) scale(0); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(-100vh) scale(1); opacity: 0; }
+}
+
+/* ================= WRAPPER ================= */
+.ended-wrapper {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 140px 20px 80px;
+    position: relative;
+    z-index: 1;
+}
+
+/* ================= MAIN CONTAINER ================= */
+.ended-box {
+    width: 100%;
+    max-width: 1300px;
+    background: rgba(13, 20, 40, 0.6);
+    backdrop-filter: blur(30px) saturate(180%);
+    border: 1px solid rgba(0, 255, 255, 0.15);
+    border-radius: 40px;
+    padding: 60px 50px;
+    box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        0 0 100px rgba(0, 234, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.ended-box::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(0, 234, 255, 0.03) 0%, transparent 70%);
+    animation: rotate 30s linear infinite;
+}
+
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ================= HEADER ================= */
+.ended-header {
+    text-align: center;
+    margin-bottom: 70px;
+    position: relative;
+    z-index: 1;
+}
+
+.trophy-icon {
+    font-size: 5rem;
+    animation: bounce 2s ease-in-out infinite;
+    display: block;
+    margin-bottom: 20px;
+    filter: drop-shadow(0 10px 30px rgba(255, 215, 0, 0.5));
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-20px) scale(1.1); }
+}
+
+.ended-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 3.5rem;
+    font-weight: 900;
+    background: linear-gradient(135deg, #00eaff 0%, #0099ff 50%, #00eaff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 15px;
+    letter-spacing: 2px;
+    animation: shimmer 3s ease-in-out infinite;
+    background-size: 200% auto;
+}
+
+@keyframes shimmer {
+    0%, 100% { background-position: 0% center; }
+    50% { background-position: 100% center; }
+}
+
+.ended-sub {
+    color: #a8f6ff;
+    font-size: 1.3rem;
+    font-weight: 300;
+    opacity: 0.9;
+    letter-spacing: 0.5px;
+}
+
+/* ================= PODIUM SECTION ================= */
+.podium-section {
+    position: relative;
+    z-index: 1;
+    margin-bottom: 60px;
+}
+
+.podium-container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 0;
+    margin: 0 auto;
+    max-width: 1000px;
+    perspective: 1000px;
+}
+
+/* ================= PODIUM CARDS ================= */
+.podium-place {
+    flex: 1;
+    max-width: 320px;
+    position: relative;
+    animation: slideUp 0.8s ease-out backwards;
+}
+
+.podium-place:nth-child(1) { animation-delay: 0.2s; }
+.podium-place:nth-child(2) { animation-delay: 0s; }
+.podium-place:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes slideUp {
+    from { 
+        opacity: 0;
+        transform: translateY(100px);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.podium-card {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    border: 2px solid;
+    border-radius: 24px 24px 0 0;
+    padding: 35px 25px;
+    text-align: center;
+    position: relative;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border-bottom: none;
+}
+
+.podium-card:hover {
+    transform: translateY(-15px) scale(1.05);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+}
+
+.podium-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+    border-radius: 24px 24px 0 0;
+    pointer-events: none;
+}
+
+/* Podium base/stand */
+.podium-base {
+    width: 100%;
+    background: inherit;
+    border: 2px solid;
+    border-color: inherit;
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    position: relative;
+}
+
+.podium-base::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.3) 0%, rgba(0, 0, 0, 0.6) 100%);
+    border-radius: 0 0 12px 12px;
+}
+
+/* ================= RANK & MEDAL ================= */
+.rank-medal {
+    font-size: 4.5rem;
+    margin-bottom: 20px;
+    display: block;
+    animation: float 3s ease-in-out infinite;
+    filter: drop-shadow(0 8px 15px rgba(0, 0, 0, 0.5));
+}
+
+.rank-number {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    opacity: 0.7;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.user-name {
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    word-wrap: break-word;
+}
+
+.user-points {
+    font-size: 1.15rem;
+    font-weight: 600;
+    opacity: 0.85;
+}
+
+.points-value {
+    font-size: 1.8rem;
+    font-weight: 900;
+    display: block;
+    margin-top: 5px;
+}
+
+/* ================= POSITION STYLES ================= */
+/* 🥇 GOLD - FIRST PLACE */
+.gold .podium-card {
+    border-color: #ffd700;
+    color: #ffd700;
+    height: 380px;
+    box-shadow: 
+        0 0 60px rgba(255, 215, 0, 0.4),
+        inset 0 0 40px rgba(255, 215, 0, 0.1);
+}
+
+.gold .podium-base {
+    border-color: #ffd700;
+    background: linear-gradient(180deg, rgba(255, 215, 0, 0.2) 0%, rgba(255, 215, 0, 0.05) 100%);
+    height: 80px;
+    box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+}
+
+.gold .rank-medal { animation-delay: 0s; }
+
+/* 🥈 SILVER - SECOND PLACE */
+.silver .podium-card {
+    border-color: #c0c0c0;
+    color: #e8e8e8;
+    height: 330px;
+    box-shadow: 
+        0 0 50px rgba(192, 192, 192, 0.4),
+        inset 0 0 40px rgba(192, 192, 192, 0.1);
+}
+
+.silver .podium-base {
+    border-color: #c0c0c0;
+    background: linear-gradient(180deg, rgba(192, 192, 192, 0.2) 0%, rgba(192, 192, 192, 0.05) 100%);
+    height: 70px;
+    box-shadow: 0 10px 25px rgba(192, 192, 192, 0.3);
+}
+
+.silver .rank-medal { animation-delay: 0.2s; }
+
+/* 🥉 BRONZE - THIRD PLACE */
+.bronze .podium-card {
+    border-color: #cd7f32;
+    color: #ff9f5a;
+    height: 290px;
+    box-shadow: 
+        0 0 40px rgba(205, 127, 50, 0.4),
+        inset 0 0 40px rgba(205, 127, 50, 0.1);
+}
+
+.bronze .podium-base {
+    border-color: #cd7f32;
+    background: linear-gradient(180deg, rgba(205, 127, 50, 0.2) 0%, rgba(205, 127, 50, 0.05) 100%);
+    height: 60px;
+    box-shadow: 0 10px 20px rgba(205, 127, 50, 0.3);
+}
+
+.bronze .rank-medal { animation-delay: 0.4s; }
+
+/* ================= FOOTER BUTTON ================= */
+.ended-footer {
+    text-align: center;
+    position: relative;
+    z-index: 1;
+    margin-top: 50px;
+}
+
+.back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 45px;
+    border-radius: 50px;
+    border: 2px solid #00eaff;
+    background: rgba(0, 234, 255, 0.05);
+    backdrop-filter: blur(10px);
+    color: #00eaff;
+    font-weight: 700;
+    font-size: 1.1rem;
+    text-decoration: none;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    box-shadow: 0 8px 25px rgba(0, 234, 255, 0.2);
+    letter-spacing: 0.5px;
+}
+
+.back-btn:hover {
+    background: #00eaff;
+    color: #0a0e27;
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 15px 40px rgba(0, 234, 255, 0.4);
+    border-color: #00eaff;
+}
+
+.back-btn::before {
+    content: '⬅';
+    font-size: 1.3rem;
+    transition: transform 0.3s ease;
+}
+
+.back-btn:hover::before {
+    transform: translateX(-5px);
+}
+
+/* ================= RESPONSIVE DESIGN ================= */
+@media (max-width: 1024px) {
+    .ended-box {
+        padding: 50px 40px;
+    }
+    
+    .ended-title {
+        font-size: 2.8rem;
+    }
+    
+    .trophy-icon {
+        font-size: 4rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .ended-wrapper {
+        padding: 120px 15px 60px;
+    }
+    
+    .ended-box {
+        padding: 40px 25px;
+        border-radius: 30px;
+    }
+    
+    .ended-header {
+        margin-bottom: 50px;
+    }
+    
+    .trophy-icon {
+        font-size: 3.5rem;
+    }
+    
+    .ended-title {
+        font-size: 2.2rem;
+    }
+    
+    .ended-sub {
+        font-size: 1.1rem;
+    }
+    
+    .podium-container {
+        flex-direction: column;
+        align-items: center;
+        gap: 30px;
+    }
+    
+    .podium-place {
+        width: 100%;
+        max-width: 400px;
+    }
+    
+    .gold .podium-card,
+    .silver .podium-card,
+    .bronze .podium-card {
+        height: auto;
+        min-height: 280px;
+    }
+    
+    .gold .podium-base,
+    .silver .podium-base,
+    .bronze .podium-base {
+        height: 60px;
+    }
+    
+    .rank-medal {
+        font-size: 3.5rem;
+    }
+    
+    .user-name {
+        font-size: 1.3rem;
+    }
+    
+    .points-value {
+        font-size: 1.5rem;
+    }
+    
+    .back-btn {
+        padding: 14px 35px;
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .ended-title {
+        font-size: 1.8rem;
+    }
+    
+    .ended-sub {
+        font-size: 1rem;
+    }
+    
+    .trophy-icon {
+        font-size: 3rem;
+    }
+    
+    .podium-card {
+        padding: 25px 20px;
+    }
+    
+    .rank-medal {
+        font-size: 3rem;
+    }
+    
+    .user-name {
+        font-size: 1.1rem;
+    }
+    
+    .user-points {
+        font-size: 1rem;
+    }
+    
+    .points-value {
+        font-size: 1.3rem;
+    }
+}
+
+/* ================= SMOOTH SCROLLING ================= */
+html {
+    scroll-behavior: smooth;
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #00eaff 0%, #0099ff 100%);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #00ffff 0%, #00aaff 100%);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Animated Background -->
+<div class="bg-animation">
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+    <div class="particle"></div>
+</div>
+
+<div class="ended-wrapper">
+    <div class="ended-box">
+
+        <!-- HEADER -->
+        <div class="ended-header">
+            <span class="trophy-icon">🏆</span>
+            <h1 class="ended-title">{{ event.event_name }}</h1>
+            <p class="ended-sub">Champions of the Arena 👑</p>
+        </div>
+
+        <!-- PODIUM -->
+        <div class="podium-section">
+            <div class="podium-container">
+
+                {% if podium|length >= 2 %}
+                <!-- 🥈 SECOND PLACE -->
+                <div class="podium-place silver">
+                    <div class="podium-card">
+                        <span class="rank-medal">🥈</span>
+                        <div class="rank-number">Runner Up</div>
+                        <div class="user-name">{{ podium.1.user__username }}</div>
+                        <div class="user-points">
+                            <span class="points-value">{{ podium.1.total_points }}</span>
+                            points
+                        </div>
+                    </div>
+                    <div class="podium-base"></div>
+                </div>
+                {% endif %}
+
+                {% if podium|length >= 1 %}
+                <!-- 🥇 FIRST PLACE -->
+                <div class="podium-place gold">
+                    <div class="podium-card">
+                        <span class="rank-medal">🥇</span>
+                        <div class="rank-number">Champion</div>
+                        <div class="user-name">{{ podium.0.user__username }}</div>
+                        <div class="user-points">
+                            <span class="points-value">{{ podium.0.total_points }}</span>
+                            points
+                        </div>
+                    </div>
+                    <div class="podium-base"></div>
+                </div>
+                {% endif %}
+
+                {% if podium|length >= 3 %}
+                <!-- 🥉 THIRD PLACE -->
+                <div class="podium-place bronze">
+                    <div class="podium-card">
+                        <span class="rank-medal">🥉</span>
+                        <div class="rank-number">Third Place</div>
+                        <div class="user-name">{{ podium.2.user__username }}</div>
+                        <div class="user-points">
+                            <span class="points-value">{{ podium.2.total_points }}</span>
+                            points
+                        </div>
+                    </div>
+                    <div class="podium-base"></div>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+
+        <!-- FOOTER -->
+        <div class="ended-footer">
+            <a href="{% url 'dashboard' %}" class="back-btn">
+                Back to Dashboard
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

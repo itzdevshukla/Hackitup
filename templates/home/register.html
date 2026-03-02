@@ -1,0 +1,287 @@
+{% extends 'home/base.html' %}
+{% load static %}
+
+{% block title %}Register – Hack!t{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        overflow: hidden;
+        /* ✅ Completely unscrollable */
+        height: 100vh;
+        margin: 0;
+    }
+
+    /* ========================= REGISTER CARD ========================= */
+
+    .register-wrapper {
+        height: 100vh;
+        /* ✅ Full viewport height */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        /* ✅ Center alignment */
+        padding-top: 10px;
+        /* ✅ Navbar ke liye offset - thoda upar */
+        padding-bottom: 250px;
+        box-sizing: border-box;
+    }
+
+    .register-card {
+        width: 420px;
+        max-width: 90%;
+        padding: 35px;
+        border-radius: 18px;
+
+        background: linear-gradient(145deg, rgba(0, 15, 25, 0.85), rgba(0, 30, 45, 0.85));
+        border: 1px solid rgba(0, 255, 255, 0.4);
+        backdrop-filter: blur(15px);
+
+        box-shadow: 0 0 25px rgba(0, 255, 255, 0.25);
+        position: relative;
+    }
+
+    /* ========================= TITLE ========================= */
+    .top-bar {
+        text-align: center;
+        margin-bottom: 25px;
+    }
+
+    .top-bar h1 {
+        font-family: Orbitron, sans-serif;
+        font-size: 1.8rem;
+        color: #00eaff;
+        margin: 0;
+        text-shadow: 0 0 15px rgba(0, 234, 255, 0.5);
+    }
+
+    /* ========================= INPUT FIELDS ========================= */
+
+    .input-label {
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+        display: block;
+        color: #a8f6ff;
+        font-weight: 500;
+    }
+
+    .input-box {
+        width: 100%;
+        padding: 12px;
+        border-radius: 10px;
+        margin-bottom: 18px;
+
+        background: rgba(0, 25, 35, 0.65);
+        border: 1px solid rgba(0, 255, 255, 0.35);
+        color: #00eaff;
+        font-size: 0.95rem;
+        outline: none;
+        box-sizing: border-box;
+        transition: 0.3s;
+    }
+
+    .input-box:focus {
+        border-color: #00eaff;
+        box-shadow: 0 0 10px rgba(0, 234, 255, 0.4);
+    }
+
+    .input-box::placeholder {
+        color: rgba(168, 246, 255, 0.4);
+    }
+
+    /* ========================= PASSWORD CONTAINER ========================= */
+    .password-container {
+        position: relative;
+        margin-bottom: 8px;
+    }
+
+    .password-container .input-box {
+        padding-right: 45px;
+        margin-bottom: 0;
+    }
+
+    /* ========================= PASSWORD EYE ========================= */
+    .eye-btn {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        cursor: pointer;
+        font-size: 1.2rem;
+        color: #00eaff;
+        user-select: none;
+        transition: 0.3s;
+    }
+
+    .eye-btn:hover {
+        text-shadow: 0 0 8px #00eaff;
+    }
+
+    /* ========================= STRENGTH BAR ========================= */
+    .strength-meter {
+        height: 6px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        transition: 0.3s;
+        background: transparent;
+    }
+
+    /* ========================= BUTTON ========================= */
+
+    .register-btn {
+        width: 100%;
+        padding: 13px;
+        margin-top: 10px;
+        border-radius: 12px;
+
+        border: 2px solid #00eaff;
+        background: transparent;
+        color: #00eaff;
+        font-size: 1.05rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: 0.3s;
+        font-family: inherit;
+    }
+
+    .register-btn:hover {
+        background: #00eaff;
+        color: #000;
+        box-shadow: 0 0 18px #00eaff;
+        transform: translateY(-2px);
+    }
+
+    /* LOGIN LINK */
+    .login-box {
+        text-align: center;
+        margin-top: 18px;
+        font-size: 0.9rem;
+        color: #a8f6ff;
+    }
+
+    .login-box a {
+        color: #00eaff;
+        text-decoration: none;
+        font-weight: 600;
+        transition: 0.3s;
+    }
+
+    .login-box a:hover {
+        text-shadow: 0 0 10px #00eaff;
+    }
+
+    /* ========================= RESPONSIVE ========================= */
+    @media (max-width: 480px) {
+        .register-card {
+            padding: 25px;
+            max-width: 95%;
+        }
+
+        .top-bar h1 {
+            font-size: 1.5rem;
+        }
+
+        .register-wrapper {
+            padding-top: 40px;
+        }
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+
+<div class="register-wrapper">
+
+    <div class="register-card">
+
+        <div class="top-bar">
+            <h1>Create Account</h1>
+        </div>
+
+        <form method="POST">
+            {% csrf_token %}
+
+            <!-- EMAIL -->
+            <label class="input-label">Email</label>
+            <input required name="email" type="email" class="input-box" placeholder="you@example.com">
+
+            <!-- USERNAME -->
+            <label class="input-label">Username</label>
+            <input required name="username" class="input-box" placeholder="hack_it">
+
+            <!-- PASSWORD -->
+            <label class="input-label">Password</label>
+            <div class="password-container">
+                <input required id="password" name="password" type="password" class="input-box" placeholder="••••••••">
+                <span class="eye-btn" onclick="togglePass()">👁</span>
+            </div>
+
+            <div id="meter" class="strength-meter"></div>
+
+            <button type="submit" class="register-btn">Register →</button>
+        </form>
+
+        <div class="login-box">
+            Already registered?
+            <a href="{% url 'login' %}">Login →</a>
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+
+    /* ===================== PASSWORD SHOW/HIDE ===================== */
+
+    function togglePass() {
+        let input = document.getElementById("password");
+        let eyeBtn = event.target;
+
+        if (input.type === "password") {
+            input.type = "text";
+            eyeBtn.textContent = "👁️";
+        } else {
+            input.type = "password";
+            eyeBtn.textContent = "👁";
+        }
+    }
+
+    /* ===================== PASSWORD STRENGTH ===================== */
+
+    let pass = document.getElementById("password");
+    let meter = document.getElementById("meter");
+
+    pass.addEventListener("input", () => {
+        let val = pass.value;
+        let strength = 0;
+
+        if (val.length > 6) strength++;
+        if (/[A-Z]/.test(val)) strength++;
+        if (/[0-9]/.test(val)) strength++;
+        if (/[^A-Za-z0-9]/.test(val)) strength++;
+
+        if (strength == 0 || val.length == 0) {
+            meter.style.background = "transparent";
+            meter.style.boxShadow = "none";
+        } else if (strength == 1) {
+            meter.style.background = "red";
+            meter.style.boxShadow = "0 0 8px red";
+        } else if (strength == 2) {
+            meter.style.background = "orange";
+            meter.style.boxShadow = "0 0 8px orange";
+        } else if (strength == 3) {
+            meter.style.background = "yellow";
+            meter.style.boxShadow = "0 0 8px yellow";
+        } else {
+            meter.style.background = "#00eaff";
+            meter.style.boxShadow = "0 0 10px #00eaff";
+        }
+    });
+
+</script>
+{% endblock %}

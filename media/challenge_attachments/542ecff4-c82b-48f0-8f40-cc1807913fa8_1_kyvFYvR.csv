@@ -1,0 +1,6 @@
+Date,Description,Amount,Balance
+2025-11-20,"Payroll Deposit – ACME CORP","+$2,500.00","$2,500.01"
+2025-11-21,"Grocery Mart",−$120.45,"$2,379.56"
+2025-11-22,"City Utilities – Direct Debit",−$210.00,"$2,169.56"
+2025-11-23,"Coffee Hub – Contactless",−$4.50,"$2,165.06"
+2025-11-24,"EvilCorp – Wire Transfer","−$10,000.00",$0.01

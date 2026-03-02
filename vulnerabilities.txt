@@ -1,0 +1,63 @@
+HACK!T PROJECT - COMPREHENSIVE SECURITY VULNERABILITY REPORT
+=========================================================
+Generated on: 2026-02-28
+Project: Hack!t (formerly GlitchMafia)
+
+This report outlines identifies vulnerabilities within the Hack!t codebase that could compromise the integrity, availability, and confidentiality of the platform.
+
+1. CRITICAL VULNERABILITIES
+---------------------------
+[V01] Hardcoded Django Secret Key
+- Path: `ctf/settings.py` (Line 24)
+- Description: The `SECRET_KEY` is hardcoded in the settings. This key is used for cryptographic signing, including sessions and password resets. If known, an attacker can forge session cookies and escalate privileges.
+- Recommendation: Use an environment variable (`os.environ.get('SECRET_KEY')`) and ensure it is unique for production.
+
+[V02] Debug Mode Enabled
+- Path: `ctf/settings.py` (Line 27)
+- Description: `DEBUG = True` is set. In production, this leaks detailed traceback information, including sensitive environment variables, database schema, and internal paths, when an error occurs.
+- Recommendation: Set `DEBUG = False` and configure proper logging for production.
+
+2. HIGH VULNERABILITIES
+-----------------------
+[V03] CSRF (Cross-Site Request Forgery) Protection Disabled on Admin APIs
+- Path: `administration/api_views.py` (Lines 213, 230, 245, 349, 421, 457, 492)
+- Description: Multiple administrative endpoints for deleting users, deleting events, importing users, and toggling bans are decorated with `@csrf_exempt`. Since the application uses session-based authentication, an attacker can trick an authenticated administrator into performing these actions (e.g., deleting all users) by visiting a malicious website.
+- Recommendation: Remove `@csrf_exempt` and handle CSRF tokens in the React frontend (e.g., using `X-CSRFToken` header).
+
+[V04] Unrestricted File Upload (Remote Code Execution Risk)
+- Path: `challenges/views.py` (Lines 48-52, 88-92)
+- Description: Admins can upload challenge attachments without any file extension validation. If the web server (e.g., Nginx/Apache) is misconfigured to execute certain extensions (like .php, .py, .sh) in the media directory, this leads to Remote Code Execution (RCE).
+- Recommendation: Implement a strict whitelist of allowed file extensions and ensure the media directory is configured to NEVER execute scripts.
+
+[V05] Plaintext Credentials in Bulk Export
+- Path: `administration/api_views.py` (Line 330)
+- Description: The user import feature generates plaintext passwords and returns them in an Excel file. If these files are stored insecurely or intercepted, multiple user accounts are immediately compromised.
+- Recommendation: Force users to change their password on first login and avoid sending plaintext passwords back to the client if possible.
+
+3. MEDIUM VULNERABILITIES
+-------------------------
+[V06] Lack of Rate Limiting (Brute-Force Risk)
+- Path: `accounts/api_views.py` (Login/Register) and `challenges/views.py` (Solve)
+- Description: There is no rate limiting on authentication or flag submission endpoints. Attackers can brute-force user passwords or automate hundreds of flag submission guesses per second.
+- Recommendation: Implement a library like `django-ratelimit` or use middleware to limit requests per IP/User.
+
+[V07] Insecure ALLOWED_HOSTS Configuration
+- Path: `ctf/settings.py` (Line 29)
+- Description: `ALLOWED_HOSTS = ["*"]` allows any Host header. This makes the application vulnerable to Host Header Injection attacks, which can lead to cache poisoning or password reset poisoning.
+- Recommendation: Whitelist only the specific domains/IPs where the app is hosted.
+
+4. LOW VULNERABILITIES & RECOMMENDATIONS
+----------------------------------------
+[V08] Information Leakage in API Responses
+- Path: Multiple endpoints in `administration/api_views.py`
+- Description: Error handlers often return the raw string representation of exceptions (`str(e)`), which can leak details about the database structure or internal file paths.
+- Recommendation: Log the specific error internally and return generic error messages to the client.
+
+[V09] SQLite in Production-like Environment
+- Path: `ctf/settings.py` (Line 84)
+- Description: Using SQLite is fine for development but risky for a multi-user high-traffic CTF due to write-locking and potential corruption under heavy concurrent load.
+- Recommendation: Switch to PostgreSQL or MySQL for any production deployment.
+
+[V10] Lack of Audit Logs
+- Description: Critical actions like banning users or deleting events are not logged to a persistent audit trail, making it difficult to investigate internal platform abuse.
+- Recommendation: Implement a logging system that records admin actions (Who, What, When).

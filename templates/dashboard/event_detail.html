@@ -1,0 +1,476 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block title %}{{ event.event_name }} – Hack!t{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* EVENT DETAIL CONTAINER */
+    .event-detail-wrapper {
+        min-height: 100vh;
+        padding: 150px 5% 80px;
+    }
+
+    .event-detail-container {
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+
+    /* BACK BUTTON */
+    .back-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: transparent;
+        border: 1px solid rgba(0, 255, 255, 0.4);
+        border-radius: 20px;
+        color: #00eaff;
+        text-decoration: none;
+        font-size: 0.9rem;
+        margin-bottom: 30px;
+        transition: 0.3s;
+    }
+
+    .back-btn:hover {
+        background: rgba(0, 255, 255, 0.1);
+        border-color: #00eaff;
+    }
+
+    /* EVENT HEADER */
+    .event-header {
+        background: linear-gradient(135deg, rgba(0, 20, 30, 0.7), rgba(0, 30, 45, 0.7));
+        border: 1px solid rgba(0, 255, 255, 0.4);
+        border-radius: 20px;
+        padding: 40px;
+        margin-bottom: 30px;
+        backdrop-filter: blur(15px);
+        box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+        position: relative;
+    }
+
+    .status-badge {
+        position: absolute;
+        top: 30px;
+        right: 40px;
+        padding: 8px 18px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .status-badge.live {
+        background: rgba(0, 255, 0, 0.2);
+        border: 1px solid #00ff00;
+        color: #00ff00;
+        box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+        animation: pulse 2s infinite;
+    }
+
+    .status-badge.upcoming {
+        background: rgba(255, 165, 0, 0.2);
+        border: 1px solid #ffa500;
+        color: #ffa500;
+    }
+
+    .status-badge.completed {
+        background: rgba(128, 128, 128, 0.2);
+        border: 1px solid #808080;
+        color: #808080;
+    }
+
+    @keyframes pulse {
+
+        0%,
+        100% {
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+        }
+
+        50% {
+            box-shadow: 0 0 25px rgba(0, 255, 0, 0.7);
+        }
+    }
+
+    .event-title {
+        font-family: Orbitron, sans-serif;
+        font-size: 2.5rem;
+        color: #00eaff;
+        margin: 0 0 15px 0;
+        text-shadow: 0 0 20px rgba(0, 234, 255, 0.5);
+    }
+
+    .event-meta {
+        display: flex;
+        gap: 30px;
+        flex-wrap: wrap;
+        color: #a8f6ff;
+        font-size: 1rem;
+    }
+
+    .event-meta span {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* CONTENT GRID */
+    .content-grid {
+        display: grid;
+        grid-template-columns: 1fr 400px;
+        gap: 30px;
+    }
+
+    /* EVENT INFO SECTION */
+    .info-section {
+        background: rgba(0, 20, 30, 0.5);
+        border: 1px solid rgba(0, 255, 255, 0.4);
+        border-radius: 18px;
+        padding: 35px;
+        backdrop-filter: blur(15px);
+        box-shadow: 0 0 25px rgba(0, 255, 255, 0.15);
+    }
+
+    .info-section h2 {
+        font-family: Orbitron, sans-serif;
+        color: #00eaff;
+        font-size: 1.8rem;
+        margin: 0 0 20px 0;
+        padding-bottom: 15px;
+        border-bottom: 1px solid rgba(0, 255, 255, 0.2);
+    }
+
+    .info-section p {
+        color: #a8f6ff;
+        line-height: 1.8;
+        font-size: 1rem;
+        margin-bottom: 25px;
+    }
+
+    .info-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 15px 0;
+        border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+    }
+
+    .info-item:last-child {
+        border-bottom: none;
+    }
+
+    .info-label {
+        color: #a8f6ff;
+        font-size: 0.95rem;
+    }
+
+    .info-value {
+        color: #00eaff;
+        font-weight: 600;
+        font-size: 1rem;
+    }
+
+    /* ACCESS CODE CARD */
+    .access-card {
+        background: linear-gradient(135deg, rgba(0, 20, 30, 0.7), rgba(0, 30, 45, 0.7));
+        border: 1px solid rgba(0, 255, 255, 0.4);
+        border-radius: 18px;
+        padding: 35px;
+        backdrop-filter: blur(15px);
+        box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+        height: fit-content;
+        position: sticky;
+        top: 130px;
+    }
+
+    .access-card h3 {
+        font-family: Orbitron, sans-serif;
+        color: #00eaff;
+        font-size: 1.5rem;
+        margin: 0 0 10px 0;
+    }
+
+    .access-card p {
+        color: #a8f6ff;
+        font-size: 0.9rem;
+        margin-bottom: 25px;
+    }
+
+    .access-input {
+        width: 100%;
+        padding: 15px;
+        background: rgba(0, 10, 15, 0.7);
+        border: 1px solid rgba(0, 255, 255, 0.3);
+        border-radius: 10px;
+        color: #00eaff;
+        font-size: 1rem;
+        font-family: 'Courier New', monospace;
+        text-align: center;
+        letter-spacing: 3px;
+        outline: none;
+        margin-bottom: 20px;
+        box-sizing: border-box;
+    }
+
+    .access-input:focus {
+        border-color: #00eaff;
+        box-shadow: 0 0 15px rgba(0, 234, 255, 0.3);
+    }
+
+    .access-input::placeholder {
+        letter-spacing: normal;
+        color: rgba(168, 246, 255, 0.4);
+    }
+
+    .join-btn {
+        width: 100%;
+        padding: 15px;
+        background: #00eaff;
+        color: #000;
+        border: 2px solid #00eaff;
+        border-radius: 25px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: 0.3s;
+        font-family: inherit;
+    }
+
+    .join-btn:hover {
+        background: transparent;
+        color: #00eaff;
+        box-shadow: 0 0 25px rgba(0, 234, 255, 0.5);
+        transform: translateY(-2px);
+    }
+
+    .join-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background: rgba(0, 255, 255, 0.3);
+        border-color: rgba(0, 255, 255, 0.3);
+    }
+
+    .join-btn:disabled:hover {
+        background: rgba(0, 255, 255, 0.3);
+        transform: none;
+        box-shadow: none;
+    }
+
+    .help-text {
+        text-align: center;
+        color: #a8f6ff;
+        font-size: 0.85rem;
+        margin-top: 15px;
+    }
+
+    .help-text a {
+        color: #00eaff;
+        text-decoration: none;
+    }
+
+    .help-text a:hover {
+        text-shadow: 0 0 10px #00eaff;
+    }
+
+    /* MESSAGES */
+    .message {
+        padding: 12px 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+    }
+
+    .message.error {
+        background: rgba(255, 0, 0, 0.15);
+        border: 1px solid #ff0000;
+        color: #ff6b6b;
+    }
+
+    .message.success {
+        background: rgba(0, 255, 0, 0.15);
+        border: 1px solid #00ff00;
+        color: #00ff00;
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 968px) {
+        .content-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .access-card {
+            position: relative;
+            top: 0;
+        }
+
+        .event-title {
+            font-size: 2rem;
+        }
+
+        .event-header {
+            padding: 30px 25px;
+        }
+
+        .status-badge {
+            position: relative;
+            top: 0;
+            right: 0;
+            display: inline-block;
+            margin-bottom: 15px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .event-detail-wrapper {
+            padding: 130px 4% 60px;
+        }
+
+        .event-title {
+            font-size: 1.7rem;
+        }
+
+        .event-meta {
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .info-section,
+        .access-card {
+            padding: 25px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="event-detail-wrapper">
+    <div class="event-detail-container">
+
+        <!-- BACK BUTTON -->
+        <a href="{% url 'dashboard' %}" class="back-btn">← Back to Events</a>
+
+        <!-- EVENT HEADER -->
+        <div class="event-header">
+            <span class="status-badge {{ event.status }}">{{ event.get_status_display }}</span>
+
+            <h1 class="event-title">{{ event.event_name }}</h1>
+
+            <div class="event-meta">
+                <span>📍 {{ event.venue }}</span>
+                <span>🎯 {{ event.ctf_type }}</span>
+                <span>👥 {{ event.max_participants }} participants</span>
+                <span>⏱️ {{ event.start_date|date:"d M Y" }} - {{ event.end_date|date:"d M Y" }}</span>
+            </div>
+        </div>
+
+        <!-- CONTENT GRID -->
+        <div class="content-grid">
+
+            <!-- EVENT INFO -->
+            <div class="info-section">
+                <h2>About This Event</h2>
+                <p>{{ event.description }}</p>
+
+                <h2 style="margin-top: 30px;">Event Details</h2>
+
+                <div class="info-item">
+                    <span class="info-label">Event Type</span>
+                    <span class="info-value">{{ event.ctf_type }}</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">Venue</span>
+                    <span class="info-value">{{ event.venue }}</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">Start Date & Time</span>
+                    <span class="info-value">{{ event.start_date|date:"d M Y" }} at {{ event.start_time }}</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">End Date & Time</span>
+                    <span class="info-value">{{ event.end_date|date:"d M Y" }} at {{ event.end_time }}</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">Max Participants</span>
+                    <span class="info-value">{{ event.max_participants }}</span>
+                </div>
+
+                <div class="info-item">
+                    <span class="info-label">Status</span>
+                    <span class="info-value">{{ event.get_status_display }}</span>
+                </div>
+            </div>
+
+            <!-- ACCESS CODE CARD -->
+            <div class="access-card">
+                <h3>🔐 Event Registration</h3>
+
+                {% if is_registered %}
+                <!-- ALREADY REGISTERED -->
+                <div class="message success">
+                    ✅ You are registered for this event
+                </div>
+
+                {% if event.status == 'live' %}
+                <p class="help-text">
+                    Event is live. <a href="{% url 'event_challenges' event.id %}">Go to Challenges →</a>
+                </p>
+                {% elif event.status == 'completed' %}
+                <p class="help-text">
+                    Event has ended. <a href="{% url 'event_leaderboard' event.id %}">View Results →</a>
+                </p>
+                {% else %}
+                <p class="help-text">
+                    Event starts on {{ event.start_date|date:"d M Y" }}
+                </p>
+                {% endif %}
+
+                {% else %}
+                <!-- NOT REGISTERED -->
+                <p>
+                    Register now to participate in this CTF event.
+                </p>
+
+                {% if messages %}
+                {% for message in messages %}
+                <div class="message {{ message.tags }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+                {% endif %}
+
+                <form method="POST">
+                    {% csrf_token %}
+
+                    <input type="text" name="access_code" class="access-input" placeholder="ENTER ACCESS CODE"
+                        maxlength="25" required {% if event.status=='completed' %}disabled{% endif %}>
+
+                    <button type="submit" class="join-btn" {% if event.status=='completed' %}disabled{% endif %}>
+                        {% if event.status == 'completed' %}
+                        Registration Closed
+                        {% else %}
+                        Register for Event →
+                        {% endif %}
+                    </button>
+                </form>
+
+                <p class="help-text">
+                    {% if event.status == 'upcoming' %}
+                    Registration open · Event starts {{ event.start_date|date:"d M Y" }}
+                    {% elif event.status == 'live' %}
+                    Event is live — register quickly!
+                    {% endif %}
+                </p>
+                {% endif %}
+            </div>
+
+
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}
