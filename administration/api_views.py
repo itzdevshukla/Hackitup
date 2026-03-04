@@ -1,4 +1,4 @@
-from ctf.utils import encode_id
+from ctf.utils import encode_id, decode_id
 from django.http import JsonResponse
 from django.contrib.auth.models import User
 from django.db.models import Count, Sum, Min, Max
@@ -869,7 +869,9 @@ def admin_wave_challenges_api(request, event_id, wave_id):
     if request.method == "PUT":
         try:
             data = json.loads(request.body)
-            challenge_ids = data.get("challenge_ids", [])
+            raw_ids = data.get("challenge_ids", [])
+            # Decode hashids to real integer PKs
+            challenge_ids = [decode_id(hid) for hid in raw_ids if decode_id(hid) is not None]
             # Unassign any current challenges from this wave that aren't in the new list
             Challenge.objects.filter(wave=wave).exclude(id__in=challenge_ids).update(wave=None)
             # Assign selected challenges to this wave
@@ -907,7 +909,10 @@ def admin_import_users_api(request):
 
             event_obj = None
             if event_id and event_id != '' and event_id != 'None':
-                event_obj = Event.objects.get(id=event_id)
+                decoded_event_id = decode_id(event_id)
+                if decoded_event_id is None:
+                    return JsonResponse({"error": "Invalid event ID"}, status=400)
+                event_obj = Event.objects.get(id=decoded_event_id)
 
             created_count = 0
             # Iterate Rows (Skip Header)
@@ -1349,7 +1354,11 @@ def admin_event_roles_api(request, event_id):
                 "created_at": r.created_at.strftime("%Y-%m-%d %H:%M:%S")
             } for r in roles
         ]
-        return JsonResponse({"roles": roles_data, "current_user_role": "organizer" if is_organizer_or_super else "admin"})
+        return JsonResponse({
+            "roles": roles_data,
+            "current_user_role": "organizer" if is_organizer_or_super else "admin",
+            "current_user_id": encode_id(request.user.id)
+        })
         
     if not is_organizer_or_super:
         return JsonResponse({"error": "Only organizers can modify roles"}, status=403)
@@ -1379,7 +1388,10 @@ def admin_event_roles_api(request, event_id):
     if request.method == "DELETE":
         try:
             data = json.loads(request.body)
-            role_id = data.get("role_id")
+            role_id_hash = data.get("role_id")
+            role_id = decode_id(role_id_hash)
+            if role_id is None:
+                return JsonResponse({"error": "Invalid role ID"}, status=400)
             
             role_to_delete = EventRole.objects.get(id=role_id, event=event)
             if role_to_delete.user == request.user and role_to_delete.role == 'organizer':

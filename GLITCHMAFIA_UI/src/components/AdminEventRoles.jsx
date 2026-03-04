@@ -12,6 +12,7 @@ function AdminEventRoles() {
 
     const [roles, setRoles] = useState([]);
     const [currentUserRole, setCurrentUserRole] = useState('admin');
+    const [currentUserId, setCurrentUserId] = useState(null);
     const [eventName, setEventName] = useState('Loading...');
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
@@ -61,6 +62,7 @@ function AdminEventRoles() {
             const data = await response.json();
             setRoles(data.roles || []);
             setCurrentUserRole(data.current_user_role || 'admin');
+            setCurrentUserId(data.current_user_id || null);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -239,7 +241,7 @@ function AdminEventRoles() {
                                         </td>
                                         <td style={{ color: '#aaa', fontSize: '0.85rem' }}>{r.created_at}</td>
                                         <td>
-                                            {currentUserRole === 'organizer' && (r.user_id !== user.id) && (
+                                            {currentUserRole === 'organizer' && (r.user_id !== currentUserId) && (
                                                 <button
                                                     onClick={() => confirmDelete(r.id, r.username)}
                                                     className="admin-btn-delete"
@@ -249,7 +251,7 @@ function AdminEventRoles() {
                                                     <FaTrash /> Remove
                                                 </button>
                                             )}
-                                            {r.user_id === user.id && <span style={{ color: '#666', fontSize: '0.85rem', fontStyle: 'italic', paddingLeft: '10px' }}>(You)</span>}
+                                            {r.user_id === currentUserId && <span style={{ color: '#666', fontSize: '0.85rem', fontStyle: 'italic', paddingLeft: '10px' }}>(You)</span>}
                                         </td>
                                     </tr>
                                 ))
