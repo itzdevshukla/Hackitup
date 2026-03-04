@@ -211,7 +211,7 @@ function AdminUsers() {
                 <table className="admin-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>S.No.</th>
                             <th>Username</th>
                             <th>Email</th>
                             <th>Status</th>
@@ -221,9 +221,9 @@ function AdminUsers() {
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredUsers.map(u => (
+                        {filteredUsers.map((u, index) => (
                             <tr key={u.id}>
-                                <td>{u.id}</td>
+                                <td>{index + 1}</td>
                                 <td style={{ color: '#fff' }}>{u.username}</td>
                                 <td>{u.email || '-'}</td>
                                 <td>

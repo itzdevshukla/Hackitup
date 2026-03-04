@@ -1,0 +1,236 @@
+.user-sidebar {
+    width: 250px;
+    background: #080808;
+    border-right: 1px solid rgba(154, 205, 50, 0.2);
+    position: fixed;
+    top: 70px;
+    /* Below Navbar */
+    bottom: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    transition: transform 0.3s ease;
+    padding-top: 2rem;
+}
+
+.sidebar-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.sidebar-menu li a {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px 25px;
+    color: #888;
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: 500;
+    border-left: 4px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.sidebar-menu li a:hover,
+.sidebar-menu li a.active {
+    background: rgba(154, 205, 50, 0.1);
+    color: #9ACD32;
+    border-left-color: #9ACD32;
+    box-shadow: inset 5px 0 15px -5px rgba(154, 205, 50, 0.2);
+}
+
+.sidebar-icon {
+    font-size: 1.2rem;
+}
+
+.sidebar-logout {
+    margin-top: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.logout-button {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 20px 25px;
+    color: #ff4444;
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.logout-button:hover {
+    background: rgba(255, 68, 68, 0.1);
+    box-shadow: inset 5px 0 15px -5px rgba(255, 68, 68, 0.2);
+}
+
+.user-dashboard-layout {
+    display: flex;
+    min-height: 100vh;
+    padding-top: 80px;
+    /* Accounts for fixed navbar */
+}
+
+.user-dashboard-content {
+    margin-left: 250px;
+    flex: 1;
+    padding: 2rem;
+    min-height: 100vh;
+    transition: margin-left 0.3s ease;
+}
+
+.mobile-menu-btn {
+    display: none;
+}
+
+/* User Overview Grid Area */
+.overview-layout {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.overview-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+}
+
+/* Stat Card Styling */
+.stat-card {
+    background: #1a1b1e;
+    border-radius: 6px;
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 120px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stat-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.stat-card-title {
+    color: #888;
+    font-size: 0.9rem;
+    font-family: 'Share Tech Mono', monospace;
+    text-transform: uppercase;
+}
+
+.stat-card-icon {
+    width: 35px;
+    height: 35px;
+    background: #9ACD32;
+    color: #111;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+}
+
+.stat-card-value {
+    font-size: 2.2rem;
+    font-weight: bold;
+    color: #fff;
+    margin-top: 0.5rem;
+    font-family: var(--font-heading);
+}
+
+/* Upcoming Events Sidebar */
+.upcoming-events-card {
+    background: #1a1b1e;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    height: 100%;
+    min-height: 300px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+.upcoming-events-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.upcoming-events-header h3 {
+    margin: 0;
+    color: #ccc;
+    font-size: 0.95rem;
+    font-weight: normal;
+    font-family: 'Share Tech Mono', monospace;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.upcoming-events-body {
+    padding: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: calc(100% - 60px);
+}
+
+.no-events-text {
+    color: #555;
+    font-size: 0.9rem;
+    font-family: 'Share Tech Mono', monospace;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .overview-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 1024px) {
+    .user-sidebar {
+        transform: translateX(-100%);
+    }
+
+    .user-sidebar.mobile-open {
+        transform: translateX(0);
+    }
+
+    .user-dashboard-content {
+        margin-left: 0;
+        padding: 1.5rem;
+    }
+
+    .mobile-menu-btn {
+        display: block;
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: var(--primary);
+        color: black;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        border: none;
+        font-size: 1.5rem;
+        z-index: 1001;
+        cursor: pointer;
+        box-shadow: 0 0 20px rgba(57, 255, 20, 0.4);
+    }
+}
+
+@media (max-width: 768px) {
+    .overview-stats-grid {
+        grid-template-columns: 1fr;
+    }
+}

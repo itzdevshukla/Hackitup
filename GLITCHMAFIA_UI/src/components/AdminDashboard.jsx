@@ -15,11 +15,14 @@ import AdminEventUserDetail from './AdminEventUserDetail';
 import AdminEventChallenges from './AdminEventChallenges';
 import AdminEventChallengeDetail from './AdminEventChallengeDetail';
 import AdminEventChallengeCreate from './AdminEventChallengeCreate';
+import AdminEventRules from './AdminEventRules';
 import AdminEventWaves from './AdminEventWaves';
 import AdminEventRoles from './AdminEventRoles';
 import AdminTestChallenges from './AdminTestChallenges';
 import AdminAddEvent from './AdminAddEvent';
 import AdminEditEvent from './AdminEditEvent';
+import AdminAnnouncements from './AdminAnnouncements';
+import NotFound from './NotFound';
 import './Admin.css';
 
 function AdminDashboard() {
@@ -73,6 +76,7 @@ function AdminDashboard() {
                     <Route path="/user/:id" element={<AdminUserDetail />} />
                     <Route path="/event/:id" element={<AdminEventDetail />} />
                     <Route path="/event/:id/edit" element={<AdminEditEvent />} />
+                    <Route path="/event/:id/rules" element={<AdminEventRules />} />
                     <Route path="/event/:id/challenges" element={<AdminEventChallenges />} />
                     <Route path="/event/:id/challenges/new" element={<AdminEventChallengeCreate />} />
                     <Route path="/event/:id/challenge/:challengeId" element={<AdminEventChallengeDetail />} />
@@ -83,6 +87,8 @@ function AdminDashboard() {
                     <Route path="/event/:id/submissions" element={<AdminEventLiveSubmissions />} />
                     <Route path="/event/:id/user/:userId" element={<AdminEventUserDetail />} />
                     <Route path="/event/:id/test-challenges" element={<AdminTestChallenges />} />
+                    <Route path="/event/:id/announcements" element={<AdminAnnouncements />} />
+                    <Route path="*" element={<NotFound />} />
                 </Routes>
             </main>
         </div>

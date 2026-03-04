@@ -1,8 +1,8 @@
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.contrib.auth.decorators import login_required
-from django.views.decorators.csrf import csrf_exempt
 from administration.models import Event
+from ctf.utils import encode_id
 
 @login_required
 @require_GET
@@ -12,7 +12,7 @@ def dashboard_events_api(request):
     events_data = []
     for event in events:
         events_data.append({
-            'id': event.id,
+            'id': encode_id(event.id),
             'title': event.event_name,
             'description': event.description,
             'status': event.get_current_status(),
@@ -85,7 +85,7 @@ def event_details_api(request, event_id):
     participants_count = EventAccess.objects.filter(event=event, is_registered=True).count()
     
     data = {
-        'id': event.id,
+        'id': encode_id(event.id),
         'title': event.event_name,
         'description': event.description,
         'status': event.get_current_status(),
@@ -106,11 +106,11 @@ def event_details_api(request, event_id):
         'participants_count': participants_count,
         'is_registered': is_registered,
         'is_registration_open': event.is_registration_open(),
+        'rules': event.rules or '',
     }
     
     return JsonResponse(data)
 
-@csrf_exempt
 @login_required
 @require_POST
 def user_request_event_api(request):
@@ -138,6 +138,167 @@ def user_request_event_api(request):
             is_approved=False,
             is_rejected=False
         )
-        return JsonResponse({'success': True, 'message': 'Event requested successfully.', 'event_id': event.id})
+        return JsonResponse({'success': True, 'message': 'Event requested successfully.', 'event_id': encode_id(event.id)})
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)}, status=400)
+
+@login_required
+@require_GET
+def user_dashboard_overview_api(request):
+    from dashboard.models import EventAccess
+    from challenges.models import UserChallenge
+    from django.db.models import Sum
+    from datetime import date
+    
+    # 1. Registered Events Count
+    events_registered = EventAccess.objects.filter(user=request.user, is_registered=True).count()
+    
+    # 2. Challenges Solved Count (unique)
+    solved_challenges_ids = UserChallenge.objects.filter(
+        user=request.user, is_correct=True
+    ).values_list('challenge_id', flat=True).distinct()
+    challenges_solved = solved_challenges_ids.count()
+    
+    # 3. Total Score
+    from challenges.models import Challenge
+    total_score = Challenge.objects.filter(id__in=solved_challenges_ids).aggregate(Sum('points'))['points__sum'] or 0
+
+    # 4. Upcoming Events (platform wide)
+    from administration.models import Event
+    upcoming_events_qs = Event.objects.filter(
+        is_approved=True,
+        is_rejected=False,
+        start_date__gte=date.today()
+    ).order_by('start_date', 'start_time')[:3]
+    from django.utils.dateparse import parse_date, parse_time
+    
+    upcoming_events = []
+    for ev in upcoming_events_qs:
+        s_date = parse_date(ev.start_date) if isinstance(ev.start_date, str) else ev.start_date
+        s_time = parse_time(ev.start_time) if isinstance(ev.start_time, str) else ev.start_time
+        
+        upcoming_events.append({
+            'id': encode_id(ev.id),
+            'title': ev.event_name,
+            'date': s_date.strftime("%b %d, %Y") if s_date else None,
+            'time': s_time.strftime("%I:%M %p") if s_time else None
+        })
+
+    return JsonResponse({
+        'events_registered': events_registered,
+        'challenges_solved': challenges_solved,
+        'total_score': total_score,
+        'upcoming_events': upcoming_events
+    })
+
+
+@require_GET
+@login_required
+def user_registered_events_api(request):
+    """
+    Returns a list of all events the user is registered for.
+    Used by the Registered Events tab.
+    """
+    from dashboard.models import EventAccess
+    
+    # Fetch user's registered events
+    registered_accesses = EventAccess.objects.filter(
+        user=request.user,
+        is_registered=True
+    ).select_related('event').order_by('event__start_date', 'event__start_time')
+    
+    events_data = []
+    from django.utils.dateparse import parse_date
+    
+    for access in registered_accesses:
+        ev = access.event
+        
+        status = ev.get_current_status()
+
+        s_date = parse_date(ev.start_date) if isinstance(ev.start_date, str) else ev.start_date
+        e_date = parse_date(ev.end_date) if isinstance(ev.end_date, str) else ev.end_date
+                
+        events_data.append({
+            'id': encode_id(ev.id),
+            'title': ev.event_name,
+            'description': ev.description,
+            'start_date': s_date.strftime("%b %d, %Y") if s_date else None,
+            'end_date': e_date.strftime("%b %d, %Y") if e_date else None,
+            'creator': ev.created_by.username if ev.created_by else 'Admin',
+            'status': status
+        })
+
+    return JsonResponse({'events': events_data})
+
+
+@require_GET
+@login_required
+def user_activity_heatmap_api(request):
+    """
+    Returns the user's correct challenge submissions grouped by day for the last 365 days,
+    along with calculated metrics (total, active days, streaks).
+    """
+    from challenges.models import UserChallenge
+    from django.utils import timezone
+    from datetime import timedelta
+    from django.db.models import Count
+    from django.db.models.functions import TruncDate
+    from django.http import JsonResponse
+
+    now = timezone.now()
+    one_year_ago = now - timedelta(days=365)
+
+    # 1. Fetch correct submissions in the last year
+    submissions = UserChallenge.objects.filter(
+        user=request.user,
+        is_correct=True,
+        submitted_at__gte=one_year_ago
+    ).annotate(date=TruncDate('submitted_at')).values('date').annotate(count=Count('id')).order_by('date')
+
+    # 2. Build the heatmap dictionary { "YYYY-MM-DD": count }
+    heatmap_data = {}
+    total_activity = 0
+    active_days = 0
+
+    for sub in submissions:
+        if sub['date']:
+            date_str = sub['date'].strftime('%Y-%m-%d')
+            count = sub['count']
+            heatmap_data[date_str] = count
+            total_activity += count
+            active_days += 1
+
+    # 3. Calculate Streaks
+    current_streak = 0
+    max_streak = 0
+    
+    temp_streak = 0
+    today_str = now.strftime('%Y-%m-%d')
+    yesterday_str = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+    
+    for i in range(365, -1, -1):
+        check_date = (now - timedelta(days=i)).strftime('%Y-%m-%d')
+        if check_date in heatmap_data:
+            temp_streak += 1
+            max_streak = max(max_streak, temp_streak)
+            if check_date == today_str or check_date == yesterday_str:
+                current_streak = temp_streak
+        else:
+            if check_date != today_str: 
+                temp_streak = 0
+                
+    if today_str not in heatmap_data and yesterday_str not in heatmap_data:
+        current_streak = 0
+
+    avg_daily = round(total_activity / 365, 2)
+
+    return JsonResponse({
+        'heatmap': heatmap_data,
+        'metrics': {
+            'total_activity': total_activity,
+            'active_days': active_days,
+            'avg_daily': avg_daily,
+            'current_streak': current_streak,
+            'max_streak': max_streak
+        }
+    })

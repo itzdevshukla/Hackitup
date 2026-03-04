@@ -72,7 +72,6 @@ function AdminEventLeaderboard() {
                     <thead>
                         <tr>
                             <th>Rank</th>
-                            <th>User ID</th>
                             <th>Username</th>
                             <th>Total Points</th>
                             <th>Solves</th>
@@ -81,10 +80,9 @@ function AdminEventLeaderboard() {
                         </tr>
                     </thead>
                     <tbody>
-                        {data.leaderboard.map(u => (
+                        {data.leaderboard.map((u, index) => (
                             <tr key={u.user_id}>
                                 <td><strong style={{ color: u.rank <= 3 ? '#00ff41' : '#fff' }}>{u.rank}</strong></td>
-                                <td>{u.user_id}</td>
                                 <td>{u.username}</td>
                                 <td style={{ color: '#00ff41', fontWeight: 'bold' }}>{u.total_points}</td>
                                 <td>{u.solves}</td>
@@ -134,7 +132,7 @@ function AdminEventLeaderboard() {
                                                 <td>{s.submitted_at}</td>
                                                 <td>{s.challenge_title}</td>
                                                 <td style={{ fontFamily: 'monospace', color: '#aaa' }}>
-                                                    {s.is_correct ? "CORRECT" : s.flag}
+                                                    {s.flag}
                                                 </td>
                                                 <td>
                                                     {s.is_correct ? (

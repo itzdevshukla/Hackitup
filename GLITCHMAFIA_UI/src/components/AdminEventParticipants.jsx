@@ -1,13 +1,75 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { FaUsers, FaArrowLeft, FaBan, FaUnlock } from 'react-icons/fa';
+import { FaUsers, FaArrowLeft, FaBan, FaUnlock, FaExclamationTriangle } from 'react-icons/fa';
 
+/* ── Custom Ban/Unban Confirmation Modal ──────────────────────── */
+function BanConfirmModal({ user, isBanned, onConfirm, onCancel, loading }) {
+    if (!user) return null;
+    const action = isBanned ? 'Unban' : 'Ban';
+    const actionColor = isBanned ? '#22c55e' : '#ef4444';
+
+    return (
+        <div style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={onCancel}>
+            <div style={{
+                background: '#0f1117', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '14px', padding: '28px 32px', maxWidth: '380px', width: '90%',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
+                display: 'flex', flexDirection: 'column', gap: '16px',
+            }} onClick={e => e.stopPropagation()}>
+
+                {/* Icon */}
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <div style={{
+                        width: '52px', height: '52px', borderRadius: '50%',
+                        background: `${actionColor}18`, border: `1.5px solid ${actionColor}44`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1.4rem', color: actionColor,
+                    }}>
+                        {isBanned ? <FaUnlock /> : <FaBan />}
+                    </div>
+                </div>
+
+                {/* Title */}
+                <div style={{ textAlign: 'center' }}>
+                    <h3 style={{ color: '#fff', fontFamily: 'Orbitron', fontSize: '1rem', fontWeight: 700, margin: 0 }}>
+                        {action} User
+                    </h3>
+                    <p style={{ color: '#6b7280', fontSize: '.82rem', marginTop: '6px', lineHeight: 1.5 }}>
+                        Are you sure you want to <span style={{ color: actionColor, fontWeight: 600 }}>{action.toLowerCase()}</span> <span style={{ color: '#e5e7eb', fontWeight: 600 }}>@{user.username}</span>?
+                        {!isBanned && <span style={{ display: 'block', marginTop: '4px', color: '#9ca3af', fontSize: '.75rem' }}>They will lose access to all challenges in this event.</span>}
+                    </p>
+                </div>
+
+                {/* Buttons */}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={onCancel} disabled={loading}
+                        style={{ flex: 1, padding: '10px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: '8px', color: '#9ca3af', cursor: 'pointer', fontFamily: 'Orbitron', fontSize: '.72rem', fontWeight: 600 }}>
+                        Cancel
+                    </button>
+                    <button onClick={onConfirm} disabled={loading}
+                        style={{ flex: 1, padding: '10px', background: actionColor, border: 'none', borderRadius: '8px', color: '#fff', cursor: 'pointer', fontFamily: 'Orbitron', fontSize: '.72rem', fontWeight: 700, opacity: loading ? 0.6 : 1 }}>
+                        {loading ? '...' : action}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/* ══════════════════════════════════════════════════════════════ */
 function AdminEventParticipants() {
     const { id } = useParams();
     const [data, setData] = useState({ event_name: '', participants: [], total_participants: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [actionLoading, setActionLoading] = useState(false);
+
+    // Custom modal state
+    const [banModal, setBanModal] = useState(null); // { user, isBanned }
 
     useEffect(() => {
         const fetchParticipants = async () => {
@@ -27,28 +89,27 @@ function AdminEventParticipants() {
         fetchParticipants();
     }, [id]);
 
-    if (loading) return <div className="loading-text">Loading Participants...</div>;
-    if (error) return <div className="error-text">Error: {error}</div>;
+    const openBanModal = (user, isBanned) => setBanModal({ user, isBanned });
+    const closeBanModal = () => { if (!actionLoading) setBanModal(null); };
 
-    const toggleBanStatus = async (userId, currentStatus) => {
-        if (!window.confirm(`Are you sure you want to ${currentStatus ? 'unban' : 'ban'} this user?`)) return;
-
+    const confirmBan = async () => {
+        if (!banModal) return;
+        const { user, isBanned } = banModal;
         setActionLoading(true);
         try {
-            const response = await fetch(`/api/admin/event/${id}/participant/${userId}/ban/`, {
+            const response = await fetch(`/api/admin/event/${id}/participant/${user.id}/ban/`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             if (!response.ok) throw new Error('Failed to toggle ban status');
             const result = await response.json();
-
-            // Update local state to reflect new ban status
             setData(prev => ({
                 ...prev,
                 participants: prev.participants.map(p =>
-                    p.id === userId ? { ...p, is_banned: result.is_banned } : p
+                    p.id === user.id ? { ...p, is_banned: result.is_banned } : p
                 )
             }));
+            setBanModal(null);
         } catch (err) {
             alert(err.message);
         } finally {
@@ -56,8 +117,20 @@ function AdminEventParticipants() {
         }
     };
 
+    if (loading) return <div className="loading-text">Loading Participants...</div>;
+    if (error) return <div className="error-text">Error: {error}</div>;
+
     return (
         <>
+            {/* Custom Ban Confirmation Modal */}
+            <BanConfirmModal
+                user={banModal?.user}
+                isBanned={banModal?.isBanned}
+                onConfirm={confirmBan}
+                onCancel={closeBanModal}
+                loading={actionLoading}
+            />
+
             <div className="admin-content-header" style={{ marginBottom: '20px', minWidth: 0, paddingRight: '20px' }}>
                 <h1 style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>Participant List: {data.event_name}</h1>
                 <p className="admin-content-subtitle">
@@ -74,7 +147,7 @@ function AdminEventParticipants() {
                 <table className="admin-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>S.No.</th>
                             <th>Username</th>
                             <th>Email</th>
                             <th>Status</th>
@@ -83,9 +156,9 @@ function AdminEventParticipants() {
                         </tr>
                     </thead>
                     <tbody>
-                        {data.participants.map(p => (
+                        {data.participants.map((p, index) => (
                             <tr key={p.id} style={{ opacity: p.is_banned ? 0.5 : 1 }}>
-                                <td>{p.id}</td>
+                                <td>{index + 1}</td>
                                 <td>
                                     <span style={{ textDecoration: p.is_banned ? 'line-through' : 'none' }}>
                                         {p.username}
@@ -106,7 +179,7 @@ function AdminEventParticipants() {
                                         <Link to={`/administration/event/${id}/user/${p.id}?from=participants`} className="admin-btn-view">View Profile</Link>
                                         <button
                                             className={p.is_banned ? "admin-btn-unban" : "admin-btn-ban"}
-                                            onClick={() => toggleBanStatus(p.id, p.is_banned)}
+                                            onClick={() => openBanModal(p, p.is_banned)}
                                             disabled={actionLoading}
                                         >
                                             {p.is_banned ? <><FaUnlock /> Unban</> : <><FaBan /> Ban</>}

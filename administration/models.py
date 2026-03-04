@@ -47,6 +47,8 @@ class Event(models.Model):
     registration_end_date = models.DateField(null=True, blank=True)
     registration_end_time = models.TimeField(null=True, blank=True)
 
+    rules = models.TextField(blank=True, null=True, help_text="Markdown supported rules for the event")
+
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
@@ -57,6 +59,7 @@ class Event(models.Model):
     is_registration_paused = models.BooleanField(default=False)
     is_approved = models.BooleanField(default=True)
     is_rejected = models.BooleanField(default=False)
+    accepting_writeups = models.BooleanField(default=False)
 
     access_code = models.CharField(max_length=50, unique=True, blank=True)
 
@@ -74,19 +77,8 @@ class Event(models.Model):
     # EVENT STATUS (UNCHANGED)
     # ===============================
     def get_current_status(self):
+        from datetime import datetime, time
         now = timezone.now()
-
-        s_date = parse_date(self.start_date) if isinstance(self.start_date, str) else self.start_date
-        s_time = parse_time(self.start_time) if isinstance(self.start_time, str) else self.start_time
-        e_date = parse_date(self.end_date) if isinstance(self.end_date, str) else self.end_date
-        e_time = parse_time(self.end_time) if isinstance(self.end_time, str) else self.end_time
-
-        start_dt = timezone.make_aware(
-            datetime.combine(s_date, s_time)
-        )
-        end_dt = timezone.make_aware(
-            datetime.combine(e_date, e_time)
-        )
 
         if self.is_rejected:
             return 'rejected'
@@ -97,12 +89,30 @@ class Event(models.Model):
         if self.is_paused:
             return 'paused'
 
-        if now < start_dt:
-            return 'upcoming'
-        elif start_dt <= now <= end_dt:
-            return 'live'
-        else:
-            return 'completed'
+        s_date = parse_date(self.start_date) if isinstance(self.start_date, str) else self.start_date
+        s_time = parse_time(self.start_time) if isinstance(self.start_time, str) else self.start_time
+        e_date = parse_date(self.end_date) if isinstance(self.end_date, str) else self.end_date
+        e_time = parse_time(self.end_time) if isinstance(self.end_time, str) else self.end_time
+
+        if s_date:
+            try:
+                st = s_time if s_time else time(0, 0)
+                start_dt = timezone.make_aware(datetime.combine(s_date, st))
+                if now < start_dt:
+                    return 'upcoming'
+            except Exception:
+                pass # If timezone conversion fails, ignore
+
+        if e_date:
+            try:
+                et = e_time if e_time else time(23, 59)
+                end_dt = timezone.make_aware(datetime.combine(e_date, et))
+                if now > end_dt:
+                    return 'completed'
+            except Exception:
+                pass
+
+        return 'live'
 
     # ===============================
     # 🔐 REGISTRATION STATUS CHECK

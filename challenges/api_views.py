@@ -1,3 +1,4 @@
+from ctf.utils import encode_id
 import json
 from django.db import models
 from django.http import JsonResponse
@@ -8,13 +9,67 @@ from django.views.decorators.http import require_POST, require_GET
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.hashers import check_password
-from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from datetime import datetime
 
 from administration.models import Event
 from dashboard.models import EventAccess
-from challenges.models import Challenge, UserChallenge, UserHint, ChallengeHint
+from challenges.models import Challenge, UserChallenge, UserHint, ChallengeHint, Announcement, WriteUp
+
+
+@login_required
+@require_GET
+def event_announcements_api(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    access = EventAccess.objects.filter(user=request.user, event=event, is_registered=True).first()
+    if not access:
+        return JsonResponse({'error': 'Not registered'}, status=403)
+
+    announcements = Announcement.objects.filter(event=event)
+    data = [{
+        'id': encode_id(a.id),
+        'title': a.title,
+        'content': a.content,
+        'created_by': a.created_by.username if a.created_by else 'Admin',
+        'created_at': a.created_at.isoformat()
+    } for a in announcements]
+
+    return JsonResponse({'event': event.event_name, 'announcements': data})
+
+
+@login_required
+def event_writeups_api(request, event_id):
+    event = get_object_or_404(Event, id=event_id)
+    access = EventAccess.objects.filter(user=request.user, event=event, is_registered=True).first()
+    if not access:
+        return JsonResponse({'error': 'Not registered'}, status=403)
+
+    if request.method == 'GET':
+        wus = WriteUp.objects.filter(user=request.user, challenge__event=event)
+        data = [{'challenge_id': encode_id(w.challenge.id), 'content': w.content} for w in wus]
+        return JsonResponse({'writeups': data})
+
+    elif request.method == 'POST':
+        if not event.accepting_writeups:
+            return JsonResponse({'error': 'Write-up submission is currently closed for this event.'}, status=403)
+            
+        body = json.loads(request.body)
+        challenge_id = body.get('challenge_id')
+        content = body.get('content', '')
+        challenge = get_object_or_404(Challenge, id=challenge_id, event=event)
+
+        # Only allow writeups for solved challenges
+        if not UserChallenge.objects.filter(user=request.user, challenge=challenge, is_correct=True).exists():
+            return JsonResponse({'error': 'You have not solved this challenge yet.'}, status=403)
+
+        wu, _ = WriteUp.objects.update_or_create(
+            user=request.user, challenge=challenge,
+            defaults={'content': content}
+        )
+        return JsonResponse({'success': True})
+
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
 
 @login_required
 @require_GET
@@ -25,7 +80,12 @@ def event_challenges_api(request, event_id):
     access = EventAccess.objects.filter(user=request.user, event=event).first()
     if not access or not access.is_registered:
          return JsonResponse({'error': 'Not registered'}, status=403)
-    
+
+    # Block access if event hasn't started yet
+    current_status = event.get_current_status()
+    if current_status in ('upcoming', 'pending'):
+        return JsonResponse({'error': f'This event has not started yet. Current status: {current_status.upper()}'}, status=403)
+
     # Pass the ban status to the frontend so it can render a specific ban page
     is_banned = access.is_banned
     challenges = Challenge.objects.filter(
@@ -44,7 +104,7 @@ def event_challenges_api(request, event_id):
     challenges_data = []
     for challenge in challenges:
         challenges_data.append({
-            'id': challenge.id,
+            'id': encode_id(challenge.id),
             'title': challenge.title,
             'description': challenge.description,
             'category': challenge.category,
@@ -64,7 +124,7 @@ def event_challenges_api(request, event_id):
         for hint in challenge.hints.all():
             is_unlocked = hint.cost == 0 or UserHint.objects.filter(user=request.user, hint=hint).exists()
             challenges_data[-1]['hints'].append({
-                'id': hint.id,
+                'id': encode_id(hint.id),
                 'cost': hint.cost,
                 'content': hint.content if is_unlocked else None,
                 'is_unlocked': is_unlocked
@@ -81,9 +141,9 @@ def event_challenges_api(request, event_id):
         'event': event.event_name, 
         'status': event.get_current_status(),
         'is_banned': is_banned,
+        'accepting_writeups': event.accepting_writeups,
         'challenges': challenges_data if not is_banned else []
     })
-@csrf_exempt
 @login_required
 @require_POST
 def unlock_hint_api(request, hint_id):
@@ -183,7 +243,7 @@ def event_leaderboard_api(request, event_id):
     def get_or_init_user(uid, username):
         if uid not in leaderboard_data:
             leaderboard_data[uid] = {
-                'id': uid,
+                'id': encode_id(uid),
                 'username': username,
                 'team': 'Hack!t',
                 'points': 0,
@@ -214,7 +274,7 @@ def event_leaderboard_api(request, event_id):
             'name': sub.challenge.title,
             'delta': sub.challenge.points,
             'timestamp': sub.submitted_at,
-            'id': sub.id
+            'id': encode_id(sub.id)
         })
         # Track duplicate filter but we calculate final points during replay for consistency?
         # Actually easier to just track duplicates here.
@@ -321,12 +381,15 @@ def event_leaderboard_api(request, event_id):
         user['color'] = f"hsl({(index * 137.5) % 360}, 85%, 60%)" # Deterministic random color
         
         if user['id'] == request.user.id:
+            user['is_me'] = True
             current_user_stats = user
+        else:
+            user['is_me'] = False
 
     # If current user is not in leaderboard (no solves), return basic stats
     if not current_user_stats:
         current_user_stats = {
-            'id': request.user.id,
+            'id': encode_id(request.user.id),
             'username': request.user.username,
             'rank': '-',
             'points': 0,
@@ -335,8 +398,54 @@ def event_leaderboard_api(request, event_id):
             'avatar': f'https://ui-avatars.com/api/?name={request.user.username}&background=random&color=fff'
         }
 
+    # Event-level totals
+    event_challenges = Challenge.objects.filter(event=event)
+    event_total_challenges = event_challenges.count()
+    event_total_points = event_challenges.aggregate(total=models.Sum('points'))['total'] or 0
+
     return JsonResponse({
-        'leaderboard': sorted_users, 
-        'event_name': event.event_name,
+        'leaderboard': sorted_users,
+        'event': event.event_name,
+        'event_total_points': event_total_points,
+        'event_total_challenges': event_total_challenges,
         'current_user_stats': current_user_stats
     })
+
+
+@require_GET
+@login_required
+def event_announcements_api(request, event_id):
+    """
+    Returns the chronologically ordered announcements for a given event.
+    Only allows access if the user is registered for the event.
+    """
+    event = get_object_or_404(Event, id=event_id)
+    
+    # Check access
+    try:
+        access = EventAccess.objects.get(user=request.user, event=event)
+        if not access.is_registered or access.is_banned:
+            return JsonResponse({"error": "Forbidden: Not registered or banned"}, status=403)
+    except EventAccess.DoesNotExist:
+        # Admins also shouldn't be blocked from seeing this if checking UI
+        if not request.user.is_staff and not getattr(request.user, 'is_superuser', False):
+            return JsonResponse({"error": "Forbidden: No event access"}, status=403)
+            
+    try:
+        announcements = __import__('challenges.models', fromlist=['Announcement']).Announcement.objects.filter(event=event).order_by('-created_at')
+        
+        data = []
+        for ann in announcements:
+            data.append({
+                'id': encode_id(ann.id),
+                'title': ann.title,
+                'content': ann.content,
+                'type': ann.type,
+                'author': ann.created_by.username if ann.created_by else 'System',
+                'created_at': ann.created_at.isoformat()
+            })
+            
+        return JsonResponse({"success": True, "announcements": data})
+        
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

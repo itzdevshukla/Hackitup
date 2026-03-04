@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { useParams, Link, useLocation } from 'react-router-dom';
-import { FaArrowLeft, FaCheck, FaTimes, FaTrophy, FaStar, FaUser, FaCrosshairs, FaExchangeAlt, FaSearch, FaBullseye, FaBan, FaDownload } from 'react-icons/fa';
+import { FaArrowLeft, FaCheck, FaTimes, FaTrophy, FaStar, FaUser, FaCrosshairs, FaExchangeAlt, FaSearch, FaBullseye, FaBan, FaDownload, FaPencilAlt, FaEye, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 
 function AdminEventUserDetail() {
     const { id, userId } = useParams();
@@ -25,6 +25,31 @@ function AdminEventUserDetail() {
     const [isBanned, setIsBanned] = useState(false);
     const [banLoading, setBanLoading] = useState(false);
 
+    const [writeupsModal, setWriteupsModal] = useState(false);
+    const [userWriteups, setUserWriteups] = useState([]);
+    const [writeupsLoading, setWriteupsLoading] = useState(false);
+    const [expandedWriteupIndex, setExpandedWriteupIndex] = useState(null);
+
+    const [hintsModal, setHintsModal] = useState(false);
+    const [userHints, setUserHints] = useState([]);
+
+    const handleViewWriteups = async () => {
+        setWriteupsModal(true);
+        setWriteupsLoading(true);
+        try {
+            const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+            const res = await fetch(`/api/admin/event/${id}/user/${userId}/writeups/`, { headers });
+            const data = await res.json();
+            if (res.ok) {
+                setUserWriteups(data.writeups || []);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setWriteupsLoading(false);
+        }
+    };
+
     useEffect(() => {
         const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
         Promise.all([
@@ -36,8 +61,9 @@ function AdminEventUserDetail() {
                 setEventName(subData.event_name || lbData.event_name || '');
                 setUsername(subData.username || '');
                 setSubmissions(subData.submissions || []);
+                setUserHints(subData.hints_taken || []);
                 setLeaderboard(lbData.leaderboard || []);
-                const entry = (lbData.leaderboard || []).find(e => e.user_id === parseInt(userId));
+                const entry = (lbData.leaderboard || []).find(e => String(e.user_id) === String(userId));
                 if (entry) { setRank(entry.rank); setPoints(entry.total_points); setSolves(entry.solves); }
             })
             .catch(err => console.error(err))
@@ -188,9 +214,136 @@ function AdminEventUserDetail() {
         document.body
     ) : null;
 
+    // WriteUps Modal
+    const writeupsPortal = writeupsModal ? ReactDOM.createPortal(
+        <div className="cmp-overlay" onClick={() => setWriteupsModal(false)} style={{ backdropFilter: 'blur(4px)' }}>
+            <div className="cmp-modal" onClick={e => e.stopPropagation()} style={{
+                maxWidth: '850px', width: '95%',
+                background: 'linear-gradient(145deg, rgba(15,15,15,0.95) 0%, rgba(5,5,5,0.95) 100%)',
+                border: '1px solid rgba(0,255,65,0.3)',
+                boxShadow: '0 0 30px rgba(0,255,65,0.15), inset 0 0 20px rgba(0,0,0,0.8)',
+                borderRadius: '12px', padding: '25px', fontFamily: "'Share Tech Mono', monospace"
+            }}>
+                <button className="cmp-close" onClick={() => setWriteupsModal(false)} style={{ color: '#00ff41', opacity: 0.8 }}><FaTimes /></button>
+                <h2 className="cmp-title" style={{ color: '#fff', borderBottom: '1px solid rgba(0,255,65,0.2)', paddingBottom: '20px', marginBottom: '25px', display: 'flex', alignItems: 'center', fontFamily: "'Orbitron', sans-serif" }}>
+                    <FaPencilAlt style={{ marginRight: '15px', color: '#00ff41', filter: 'drop-shadow(0 0 5px rgba(0,255,65,0.5))' }} />
+                    <span style={{ color: '#00ff41', marginRight: '8px' }}>{username}'s</span> WriteUps
+                </h2>
+
+                {writeupsLoading ? (
+                    <div style={{ textAlign: 'center', padding: '3rem', color: '#00ff41', fontFamily: "'Orbitron', sans-serif" }}>DECRYPTING WRITEUPS...</div>
+                ) : userWriteups.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#555', background: 'rgba(0,0,0,0.4)', borderRadius: '8px', border: '1px dashed #333' }}>
+                        <FaPencilAlt style={{ fontSize: '3rem', marginBottom: '15px', opacity: 0.2 }} />
+                        <div style={{ fontSize: '1.1rem', fontFamily: "'Orbitron', sans-serif" }}>NO WRITEUPS FOUND</div>
+                        <div style={{ fontSize: '0.9rem', marginTop: '10px' }}>This user hasn't submitted any write-ups for this event yet.</div>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '60vh', overflowY: 'auto', paddingRight: '10px' }}>
+                        {userWriteups.map((w, i) => {
+                            const isExpanded = expandedWriteupIndex === i;
+                            return (
+                                <div key={i} style={{
+                                    background: isExpanded ? 'rgba(0,255,65,0.03)' : 'rgba(10,10,10,0.6)',
+                                    border: `1px solid ${isExpanded ? 'rgba(0,255,65,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                                    borderRadius: '8px', overflow: 'hidden', transition: 'all 0.3s ease',
+                                    boxShadow: isExpanded ? '0 0 15px rgba(0,255,65,0.05)' : 'none'
+                                }}>
+                                    <div
+                                        onClick={() => setExpandedWriteupIndex(isExpanded ? null : i)}
+                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px', cursor: 'pointer', background: isExpanded ? 'rgba(0,255,65,0.08)' : 'transparent', borderBottom: isExpanded ? '1px solid rgba(0,255,65,0.2)' : 'none', transition: 'background 0.2s ease' }}
+                                    >
+                                        <div>
+                                            <h3 style={{ margin: '0 0 8px 0', color: isExpanded ? '#00ff41' : '#ddd', fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '10px', fontFamily: "'Orbitron', sans-serif" }}>
+                                                <span style={{ color: '#00ff41', fontSize: '0.8rem' }}>&gt;_</span>
+                                                {w.challenge_title}
+                                            </h3>
+                                            <div style={{ fontSize: '0.85rem', color: '#777' }}>
+                                                <span style={{ color: '#444' }}>[</span> Submitted: <span style={{ color: '#aaa' }}>{w.submitted_at ? new Date(w.submitted_at).toLocaleString() : 'UNKNOWN'}</span> <span style={{ color: '#444' }}>]</span>
+                                            </div>
+                                        </div>
+                                        <div style={{ color: isExpanded ? '#00ff41' : '#666', fontSize: '1.2rem', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s ease, color 0.3s ease' }}>
+                                            {isExpanded ? <FaChevronUp /> : <FaChevronDown />}
+                                        </div>
+                                    </div>
+
+                                    {isExpanded && (
+                                        <div style={{ padding: '20px', background: 'rgba(5,5,5,0.9)' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #222', paddingBottom: '10px', marginBottom: '15px' }}>
+                                                <span style={{ color: '#555', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Payload_Content</span>
+                                                <span style={{ color: '#00ff41', fontSize: '0.8rem', opacity: 0.5 }}>length: {w.content?.length || 0} chars</span>
+                                            </div>
+                                            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#ccc', background: 'transparent', padding: '0', borderRadius: '0', border: 'none', fontFamily: "'Share Tech Mono', monospace", fontSize: '0.95rem', margin: 0, lineHeight: '1.6' }}>
+                                                {w.content || '/* No content provided */'}
+                                            </pre>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        </div>,
+        document.body
+    ) : null;
+
+    // Hints Modal
+    const hintsPortal = hintsModal ? ReactDOM.createPortal(
+        <div className="cmp-overlay" onClick={() => setHintsModal(false)} style={{ backdropFilter: 'blur(4px)' }}>
+            <div className="cmp-modal" onClick={e => e.stopPropagation()} style={{
+                maxWidth: '600px', width: '95%',
+                background: 'linear-gradient(145deg, rgba(15,15,15,0.95) 0%, rgba(5,5,5,0.95) 100%)',
+                border: '1px solid rgba(255,149,0,0.3)',
+                boxShadow: '0 0 30px rgba(255,149,0,0.15), inset 0 0 20px rgba(0,0,0,0.8)',
+                borderRadius: '12px', padding: '25px', fontFamily: "'Share Tech Mono', monospace"
+            }}>
+                <button className="cmp-close" onClick={() => setHintsModal(false)} style={{ color: '#ff9500', opacity: 0.8 }}><FaTimes /></button>
+                <h2 className="cmp-title" style={{ color: '#fff', borderBottom: '1px solid rgba(255,149,0,0.2)', paddingBottom: '20px', marginBottom: '25px', display: 'flex', alignItems: 'center', fontFamily: "'Orbitron', sans-serif" }}>
+                    <FaEye style={{ marginRight: '15px', color: '#ff9500', filter: 'drop-shadow(0 0 5px rgba(255,149,0,0.5))' }} />
+                    <span style={{ color: '#ff9500', marginRight: '8px' }}>{username}'s</span> Hints
+                </h2>
+
+                {userHints.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#555', background: 'rgba(0,0,0,0.4)', borderRadius: '8px', border: '1px dashed #333' }}>
+                        <FaEye style={{ fontSize: '3rem', marginBottom: '15px', opacity: 0.2 }} />
+                        <div style={{ fontSize: '1.1rem', fontFamily: "'Orbitron', sans-serif" }}>NO HINTS TAKEN</div>
+                        <div style={{ fontSize: '0.9rem', marginTop: '10px' }}>This user hasn't unlocked any hints.</div>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '60vh', overflowY: 'auto', paddingRight: '10px' }}>
+                        {userHints.map((h, i) => (
+                            <div key={i} style={{
+                                background: 'rgba(10,10,10,0.6)',
+                                border: '1px solid rgba(255,255,255,0.08)',
+                                borderRadius: '8px', overflow: 'hidden', padding: '15px 20px',
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                            }}>
+                                <div>
+                                    <h3 style={{ margin: '0 0 5px 0', color: '#ddd', fontSize: '1.1rem', fontFamily: "'Orbitron', sans-serif" }}>
+                                        {h.challenge_title}
+                                    </h3>
+                                    <div style={{ fontSize: '0.85rem', color: '#888' }}>
+                                        Unlocked at: <span style={{ color: '#bbb' }}>{h.unlocked_at}</span>
+                                    </div>
+                                </div>
+                                <div style={{ color: '#ff3b30', fontWeight: 'bold', fontSize: '1.2rem', fontFamily: "'Orbitron', sans-serif" }}>
+                                    -{h.cost} pts
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>,
+        document.body
+    ) : null;
+
     return (
         <>
             {compareModal}
+            {writeupsPortal}
+            {hintsPortal}
             <Link to={fromParticipants ? `/administration/event/${id}/participants` : `/administration/event/${id}/submissions`} className="admin-back-link">
                 <FaArrowLeft /> {fromParticipants ? 'Back to Participants' : 'Back to Live Submissions'}
             </Link>
@@ -225,6 +378,20 @@ function AdminEventUserDetail() {
                     onClick={handleExportData}
                 >
                     <FaDownload /> Export Data
+                </button>
+                <button
+                    className="eud-ban-btn"
+                    style={{ background: 'transparent', border: '1px solid #17a2b8', color: '#17a2b8', marginLeft: '10px' }}
+                    onClick={handleViewWriteups}
+                >
+                    <FaEye /> View WriteUps
+                </button>
+                <button
+                    className="eud-ban-btn"
+                    style={{ background: 'transparent', border: '1px solid #ff9500', color: '#ff9500', marginLeft: '10px' }}
+                    onClick={() => setHintsModal(true)}
+                >
+                    <FaEye /> Hints Taken
                 </button>
             </div>
 
@@ -274,7 +441,7 @@ function AdminEventUserDetail() {
                     {compareQuery.trim().length > 0 && (() => {
                         const q = compareQuery.trim().toLowerCase();
                         const suggestions = leaderboard
-                            .filter(e => e.username.toLowerCase().includes(q) && e.user_id !== parseInt(userId))
+                            .filter(e => e.username.toLowerCase().includes(q) && String(e.user_id) !== String(userId))
                             .slice(0, 6);
                         if (suggestions.length === 0) return null;
                         return (

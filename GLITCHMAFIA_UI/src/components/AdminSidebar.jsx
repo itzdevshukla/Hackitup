@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import CustomAlert from './CustomAlert';
-import { FaChartBar, FaUsers, FaBullseye, FaArrowLeft, FaSignOutAlt, FaBars, FaPlusCircle, FaEye, FaTrophy, FaEdit, FaPlay, FaPause, FaStop, FaCode, FaWater, FaUserShield, FaFlask } from 'react-icons/fa';
+import { FaChartBar, FaUsers, FaBullseye, FaArrowLeft, FaSignOutAlt, FaBars, FaPlusCircle, FaEye, FaTrophy, FaEdit, FaPlay, FaPause, FaStop, FaCode, FaWater, FaUserShield, FaFlask, FaGavel, FaBullhorn } from 'react-icons/fa';
 
 function AdminSidebar({ isOpen, setIsOpen }) {
     const location = useLocation();
@@ -33,8 +33,8 @@ function AdminSidebar({ isOpen, setIsOpen }) {
     if (isEventScope) {
         const parts = location.pathname.split('/');
         eventId = parts[3]; // e.g. ["", "administration", "event", "123", ...]
-        // Make sure eventId is a number (not "new")
-        if (isNaN(parseInt(eventId))) eventId = null;
+        // Make sure eventId is a valid truthy string (not "new")
+        if (!eventId || eventId === 'new') eventId = null;
     }
 
     // Fetch Event Status for Controls
@@ -172,6 +172,12 @@ function AdminSidebar({ isOpen, setIsOpen }) {
                                 </Link>
                             </li>
                             <li>
+                                <Link to={`/administration/event/${eventId}/announcements`} className={isActive(`/administration/event/${eventId}/announcements`)}>
+                                    <span className="sidebar-icon"><FaBullhorn /></span>
+                                    <span>Announcements</span>
+                                </Link>
+                            </li>
+                            <li>
                                 <Link to={`/administration/event/${eventId}/waves`} className={isActive(`/administration/event/${eventId}/waves`)}>
                                     <span className="sidebar-icon"><FaWater /></span>
                                     <span>Waves</span>
@@ -187,6 +193,12 @@ function AdminSidebar({ isOpen, setIsOpen }) {
                                 <Link to={`/administration/event/${eventId}/roles`} className={isActive(`/administration/event/${eventId}/roles`)}>
                                     <span className="sidebar-icon"><FaUserShield /></span>
                                     <span>Event Roles</span>
+                                </Link>
+                            </li>
+                            <li>
+                                <Link to={`/administration/event/${eventId}/rules`} className={isActive(`/administration/event/${eventId}/rules`)}>
+                                    <span className="sidebar-icon"><FaGavel /></span>
+                                    <span>Rules & Regulations</span>
                                 </Link>
                             </li>
                             <li>
@@ -317,6 +329,53 @@ function AdminSidebar({ isOpen, setIsOpen }) {
                                     >
                                         <FaStop style={{ color: eventObj.status === 'completed' ? '#555' : 'inherit' }} /> End Event
                                     </button>
+
+                                    <hr style={{ borderColor: '#333', margin: '5px 0' }} />
+
+                                    {/* WriteUp Controls */}
+                                    {!eventObj.accepting_writeups ? (
+                                        <button
+                                            onClick={() => confirmEventAction('start_writeups', 'start accepting writeups')}
+                                            disabled={actionLoading || eventObj.status === 'completed'}
+                                            style={{
+                                                width: '100%', padding: '10px 12px',
+                                                background: eventObj.status === 'completed' ? '#333' : '#f8f9fa',
+                                                border: eventObj.status === 'completed' ? '1px solid #444' : '1px solid #e9ecef',
+                                                color: eventObj.status === 'completed' ? '#666' : '#111',
+                                                borderRadius: '6px',
+                                                cursor: eventObj.status === 'completed' || actionLoading ? 'not-allowed' : 'pointer',
+                                                opacity: actionLoading ? 0.5 : 1,
+                                                textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem', fontWeight: 'bold',
+                                                transition: 'all 0.2s ease',
+                                                boxShadow: eventObj.status === 'completed' ? 'none' : '0 2px 4px rgba(0,0,0,0.1)'
+                                            }}
+                                            onMouseEnter={e => { if (eventObj.status !== 'completed' && !actionLoading) e.currentTarget.style.background = '#e2e6ea'; }}
+                                            onMouseLeave={e => { if (eventObj.status !== 'completed' && !actionLoading) e.currentTarget.style.background = '#f8f9fa'; }}
+                                        >
+                                            <FaPlay style={{ color: eventObj.status === 'completed' ? '#555' : '#17a2b8' }} /> Accept WriteUps
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => confirmEventAction('stop_writeups', 'stop accepting writeups')}
+                                            disabled={actionLoading || eventObj.status === 'completed'}
+                                            style={{
+                                                width: '100%', padding: '10px 12px',
+                                                background: eventObj.status === 'completed' ? '#333' : '#17a2b8',
+                                                border: 'none',
+                                                color: eventObj.status === 'completed' ? '#666' : '#fff',
+                                                borderRadius: '6px',
+                                                cursor: eventObj.status === 'completed' || actionLoading ? 'not-allowed' : 'pointer',
+                                                opacity: actionLoading ? 0.5 : 1,
+                                                textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.9rem', fontWeight: 'bold',
+                                                transition: 'all 0.2s ease',
+                                                boxShadow: eventObj.status === 'completed' ? 'none' : '0 4px 6px rgba(23,162,184,0.3)'
+                                            }}
+                                            onMouseEnter={e => { if (eventObj.status !== 'completed' && !actionLoading) { e.currentTarget.style.background = '#138496'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(23,162,184,0.5)'; } }}
+                                            onMouseLeave={e => { if (eventObj.status !== 'completed' && !actionLoading) { e.currentTarget.style.background = '#17a2b8'; e.currentTarget.style.boxShadow = '0 4px 6px rgba(23,162,184,0.3)'; } }}
+                                        >
+                                            <FaStop style={{ color: eventObj.status === 'completed' ? '#555' : '#fff' }} /> Stop WriteUps
+                                        </button>
+                                    )}
 
                                     <hr style={{ borderColor: '#333', margin: '5px 0' }} />
                                     <button

@@ -8,9 +8,6 @@ const HostEvent = () => {
         eventName: '',
         venue: '',
         description: '',
-        eventName: '',
-        venue: '',
-        description: '',
         ctfType: 'Jeopardy Style',
         participants: '',
         startDate: '',
@@ -124,7 +121,7 @@ const HostEvent = () => {
     };
 
     return (
-        <div className="auth-container" style={{ padding: '120px 0 60px 0', minHeight: '100vh', height: 'auto' }}>
+        <div className="auth-container" style={{ padding: '2rem 0 60px 0', minHeight: '100vh', height: 'auto' }}>
             <CustomAlert isOpen={alertOpen} {...alertConfig} />
             <motion.div
                 className="auth-card"

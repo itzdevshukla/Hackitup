@@ -54,7 +54,7 @@ function AdminEditEvent() {
                     venue: ev.venue || '',
                     description: ev.description || '',
                     ctf_type: ev.ctf_type || 'Jeopardy Style',
-                    max_participants: data.stats.total_participants || 0,
+                    max_participants: ev.max_participants || 0,
                     access_code: ev.access_code || '',
                     start_date: ev.start_date || '',
                     start_time: ev.start_time ? ev.start_time.substring(0, 5) : '',

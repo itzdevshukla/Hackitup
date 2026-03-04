@@ -1,9 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&family=Rajdhani:wght@500;600;700&display=swap');
 
 :root {
-    /* Lighter Parrot Green for better visibility based on user feedback */
-    --primary: #88ff00;
-    --primary-glow: rgba(136, 255, 0, 0.6);
+    /* YellowGreen Theme (#9ACD32) */
+    --primary: #9ACD32;
+    --primary-glow: rgba(154, 205, 50, 0.6);
     --secondary: #1a1a1a;
     --bg-dark: #050505;
     --bg-card: rgba(20, 20, 20, 0.7);
@@ -12,6 +12,7 @@
 
     --font-heading: 'Orbitron', 'Rajdhani', sans-serif;
     --font-body: 'Outfit', sans-serif;
+
     --font-mono: 'Rajdhani', monospace;
     /* Tech font for data */
 }
@@ -77,6 +78,12 @@ h6 {
 .neon-text {
     color: var(--primary);
     text-shadow: 0 0 10px var(--primary-glow);
+}
+
+.logo .neon-text {
+    color: #88ff00;
+    /* Original Parrot Green */
+    text-shadow: 0 0 10px rgba(136, 255, 0, 0.6);
 }
 
 /* Glitch Effect */
@@ -388,31 +395,40 @@ h6 {
     min-height: 80vh;
 }
 
+.hero-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-right: 2rem;
+}
+
+.hero-visual {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    width: 100%;
+}
+
 .hero-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.6rem 1.2rem;
-    background: rgba(57, 255, 20, 0.1);
-    border: 1px solid rgba(57, 255, 20, 0.3);
+    padding: 0.6rem 0;
+    /* Removed horizontal padding since there's no background box anymore */
+    background: transparent;
+    border: none;
     color: var(--primary);
     font-family: var(--font-heading);
-    font-size: 0.8rem;
-    margin-bottom: 2rem;
-    border-radius: 2px;
+    font-size: 0.9rem;
+    /* Slightly larger since it's just text now */
+    margin-bottom: 1.5rem;
     position: relative;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 600;
 }
 
-.hero-badge::before {
-    content: '';
-    position: absolute;
-    top: -1px;
-    left: -1px;
-    width: 10px;
-    height: 10px;
-    border-top: 2px solid var(--primary);
-    border-left: 2px solid var(--primary);
-}
+
 
 .hero-title {
     font-size: 5rem;
@@ -498,8 +514,9 @@ h6 {
 }
 
 .omnitrix-display {
-    width: 500px;
-    height: 500px;
+    width: 100%;
+    max-width: 500px;
+    aspect-ratio: 1 / 1;
     position: relative;
     display: flex;
     align-items: center;
@@ -516,8 +533,8 @@ h6 {
 
 .omnitrix-core {
     position: absolute;
-    width: 150px;
-    height: 150px;
+    width: 30%;
+    height: 30%;
     background: radial-gradient(circle, #39FF14 0%, #000 70%);
     border-radius: 50%;
     top: 50%;
@@ -2120,6 +2137,7 @@ h6 {
     margin-bottom: 1.5rem;
     display: -webkit-box;
     -webkit-line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }

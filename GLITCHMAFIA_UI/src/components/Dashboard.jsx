@@ -1,13 +1,12 @@
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaBroadcastTower, FaUsers, FaTrophy, FaServer, FaClock, FaSignal, FaShieldAlt, FaSearch, FaFilter } from 'react-icons/fa';
+import { FaShieldAlt, FaSearch, FaCalendarAlt, FaChevronRight } from 'react-icons/fa';
 
 const Dashboard = () => {
     const navigate = useNavigate();
     const [searchTerm, setSearchTerm] = useState("");
     const [filter, setFilter] = useState("All");
-
     const [liveEvents, setLiveEvents] = useState([]);
 
     useEffect(() => {
@@ -24,17 +23,14 @@ const Dashboard = () => {
             const status = event.status ? event.status.toLowerCase() : '';
             const matchesSearch = event.title.toLowerCase().includes(searchTerm.toLowerCase());
 
-            if (filter === "All") return matchesSearch && status !== 'completed'; // Hide completed by default in All? Or show? User said "upcoming mein hi aa rhe hai". Let's show all.
-            // Actually, usually "All" shows everything.
             if (filter === "All") return matchesSearch;
-
             if (filter === "Live") return matchesSearch && status === "live";
             if (filter === "Upcoming") return matchesSearch && status === "upcoming";
             if (filter === "Past") return matchesSearch && status === "completed";
 
             return matchesSearch;
         });
-    }, [searchTerm, filter, liveEvents]); // Added liveEvents to dependency
+    }, [searchTerm, filter, liveEvents]);
 
     const counts = {
         All: liveEvents.length,
@@ -44,111 +40,233 @@ const Dashboard = () => {
     };
 
     return (
-        <div className="dashboard-container">
-            {/* Reference Style Header */}
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8 }}
-                className="arena-header"
-            >
-                <h1 className="arena-title">CTF ARENA</h1>
-                <div className="arena-underline"></div>
-                <p className="arena-description">
-                    Master the art of cybersecurity through immersive seasonal challenges.
-                    Each CTF brings unique themes, cutting-edge security scenarios, and real-world
-                    penetration testing experiences.
-                </p>
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="explore-events-container"
+            style={{
+                padding: '0.5rem 2rem 2rem',
+                color: '#fff',
+                width: '100%'
+            }}
+        >
+            {/* Header Section (Inline with Layout) */}
+            <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '2rem',
+                background: 'linear-gradient(90deg, rgba(154,205,50,0.1), transparent)',
+                padding: '1.5rem',
+                borderRadius: '8px',
+                borderLeft: '4px solid #9ACD32',
+                flexWrap: 'wrap',
+                gap: '1rem'
+            }}>
+                <div style={{ flex: '1 1 auto' }}>
+                    <h1 style={{
+                        fontSize: '2.5rem',
+                        margin: 0,
+                        color: '#fff',
+                        textShadow: '0 0 10px rgba(255,255,255,0.2)',
+                        letterSpacing: '1px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px'
+                    }}>
+                        Explore <span style={{ color: '#9ACD32' }}>Events</span>
+                    </h1>
+                </div>
 
-            </motion.div>
+                {/* Controls right aligned inside header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
 
-            {/* Search Bar (Centered) */}
-            <div className="arena-search-container">
-                <input
-                    type="text"
-                    className="arena-search-input"
-                    placeholder="Search Events..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+                    {/* Filter Dropdown */}
+                    <div style={{ position: 'relative' }}>
+                        <select
+                            value={filter}
+                            onChange={(e) => setFilter(e.target.value)}
+                            style={{
+                                appearance: 'none',
+                                background: 'rgba(20, 20, 20, 0.8)',
+                                border: '1px solid rgba(154, 205, 50, 0.5)',
+                                color: '#9ACD32',
+                                padding: '0.6rem 2.5rem 0.6rem 1rem',
+                                borderRadius: '8px',
+                                fontSize: '0.95rem',
+                                fontWeight: 'bold',
+                                outline: 'none',
+                                cursor: 'pointer',
+                                transition: 'all 0.3s ease',
+                                boxShadow: '0 4px 15px rgba(0,0,0,0.2)'
+                            }}
+                            onFocus={(e) => e.target.style.boxShadow = '0 0 15px rgba(154, 205, 50, 0.3)'}
+                            onBlur={(e) => e.target.style.boxShadow = '0 4px 15px rgba(0,0,0,0.2)'}
+                        >
+                            <option value="All">All Events ({counts["All"]})</option>
+                            <option value="Live">Live ({counts["Live"]})</option>
+                            <option value="Upcoming">Upcoming ({counts["Upcoming"]})</option>
+                            <option value="Past">Past ({counts["Past"]})</option>
+                        </select>
+                        {/* Custom Dropdown Arrow */}
+                        <div style={{
+                            position: 'absolute',
+                            right: '1rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            pointerEvents: 'none',
+                            color: '#9ACD32'
+                        }}>
+                            ▼
+                        </div>
+                    </div>
+
+                    {/* Search Bar */}
+                    <div style={{ position: 'relative', width: '250px' }}>
+                        <FaSearch style={{ position: 'absolute', top: '50%', left: '15px', transform: 'translateY(-50%)', color: '#9ACD32', fontSize: '0.9rem' }} />
+                        <input
+                            type="text"
+                            placeholder="Search..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '0.6rem 1rem 0.6rem 40px',
+                                background: 'rgba(0, 0, 0, 0.4)',
+                                border: '1px solid rgba(154, 205, 50, 0.3)',
+                                borderRadius: '50px',
+                                color: '#fff',
+                                fontSize: '0.9rem',
+                                outline: 'none',
+                                transition: 'all 0.3s ease',
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = '#9ACD32'}
+                            onBlur={(e) => e.target.style.borderColor = 'rgba(154, 205, 50, 0.3)'}
+                        />
+                    </div>
+                </div>
             </div>
 
-            {/* Filter Pills */}
-            <div className="arena-filters-container">
-                {["All", "Live", "Upcoming", "Past"].map(f => (
-                    <button
-                        key={f}
-                        className={`arena-filter-tab ${filter === f ? 'active' : ''}`}
-                        onClick={() => setFilter(f)}
-                    >
-                        {f} <span className="filter-count">({counts[f]})</span>
-                    </button>
-                ))}
-            </div>
-
-            <motion.div className="events-grid" layout>
+            {/* Events Grid */}
+            <motion.div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))',
+                gap: '2rem',
+                width: '100%'
+            }} layout>
                 <AnimatePresence mode='popLayout'>
-                    {filteredEvents.map((event) => (
+                    {filteredEvents.length > 0 ? filteredEvents.map((event) => (
                         <motion.div
                             layout
                             key={event.id}
-                            className="event-card"
-                            initial={{ opacity: 0, scale: 0.9 }}
+                            initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.9 }}
                             transition={{ duration: 0.2 }}
-                            whileHover={{ y: -8, boxShadow: '0 10px 30px -10px rgba(0,255,65,0.2)' }}
+                            whileHover={{ y: -5 }}
+                            style={{
+                                background: 'rgba(20, 20, 20, 0.6)',
+                                backdropFilter: 'blur(10px)',
+                                border: '1px solid rgba(154, 205, 50, 0.15)',
+                                borderRadius: '12px',
+                                overflow: 'hidden',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                position: 'relative',
+                                boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                                transition: 'all 0.3s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = 'rgba(154, 205, 50, 0.5)';
+                                e.currentTarget.style.boxShadow = '0 10px 40px rgba(154, 205, 50, 0.15)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = 'rgba(154, 205, 50, 0.15)';
+                                e.currentTarget.style.boxShadow = '0 10px 30px rgba(0,0,0,0.5)';
+                            }}
                         >
-                            <div className="card-inner group">
-                                <div className="card-glow" />
-
-                                {/* Header: Status & Creator */}
-                                <div className="card-header-row relative z-10">
-                                    <div className={`status-pill ${(event.status || '').toLowerCase() === 'live'
-                                        ? 'status-live'
-                                        : 'status-upcoming'
-                                        }`}>
-                                        {(event.status || 'UPCOMING').toUpperCase()}
-                                    </div>
-
-                                    <div className="creator-badge">
-                                        <FaShieldAlt className="text-neon-green" />
-                                        <span>{event.creator || 'Admin'}</span>
-                                    </div>
+                            {/* Card Header (Status + Creator) */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1.5rem 1.5rem 0', alignItems: 'center' }}>
+                                <div style={{
+                                    padding: '4px 12px',
+                                    borderRadius: '4px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 'bold',
+                                    letterSpacing: '1px',
+                                    textTransform: 'uppercase',
+                                    background: (event.status || '').toLowerCase() === 'live' ? 'rgba(154, 205, 50, 0.1)' : 'rgba(255,255,255,0.05)',
+                                    color: (event.status || '').toLowerCase() === 'live' ? '#9ACD32' : '#aaa',
+                                    border: `1px solid ${(event.status || '').toLowerCase() === 'live' ? '#9ACD32' : 'rgba(255,255,255,0.1)'}`
+                                }}>
+                                    {(event.status || 'UPCOMING')}
                                 </div>
-
-                                {/* Content: Title & Desc */}
-                                <div className="card-body relative z-10">
-                                    <h3 className="event-title">
-                                        {event.title}
-                                    </h3>
-                                    <p className="event-desc">
-                                        {event.description}
-                                    </p>
-                                </div>
-
-                                {/* Action: Join Button */}
-                                <div className="join-btn-container relative z-10">
-                                    <button
-                                        onClick={() => navigate(`/event/${event.id}`)}
-                                        className="join-btn"
-                                    >
-                                        {(event.status || '').toLowerCase() === 'completed' ? 'View Results' :
-                                            (event.status || '').toLowerCase() === 'upcoming' ? 'View Details' : 'Join Challenge'}
-                                    </button>
-                                </div>
-
-                                {/* Footer: Dates */}
-                                <div className="card-footer-row relative z-10">
-                                    <span>Starts: {event.start_date}</span>
-                                    <span>Ends: {event.end_date || 'TBA'}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#888', fontSize: '0.85rem' }}>
+                                    <FaShieldAlt style={{ color: '#9ACD32' }} />
+                                    <span>{event.creator || 'Admin'}</span>
                                 </div>
                             </div>
+
+                            {/* Card Body */}
+                            <div style={{ padding: '1.5rem', flexGrow: 1 }}>
+                                <h3 style={{ fontSize: '1.4rem', color: '#fff', marginBottom: '10px', lineHeight: 1.3 }}>
+                                    {event.title}
+                                </h3>
+                                <p style={{ color: '#aaa', fontSize: '0.95rem', lineHeight: 1.6, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                                    {event.description}
+                                </p>
+                            </div>
+
+                            {/* Card Footer (Action button + Dates) */}
+                            <div style={{
+                                padding: '1.5rem',
+                                borderTop: '1px solid rgba(255,255,255,0.05)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                background: 'rgba(0,0,0,0.2)'
+                            }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontFamily: "'Share Tech Mono', monospace", fontSize: '0.85rem', color: '#888' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><FaCalendarAlt style={{ color: '#9ACD32' }} /> {event.start_date}</span>
+                                </div>
+
+                                <button
+                                    onClick={() => navigate(`/event/${event.id}`)}
+                                    style={{
+                                        background: 'transparent',
+                                        color: '#9ACD32',
+                                        border: '1px solid #9ACD32',
+                                        padding: '0.6rem 1.2rem',
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                        fontWeight: 'bold',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                        transition: 'all 0.2s',
+                                        fontSize: '0.9rem'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = '#9ACD32';
+                                        e.currentTarget.style.color = '#000';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = 'transparent';
+                                        e.currentTarget.style.color = '#9ACD32';
+                                    }}
+                                >
+                                    {(event.status || '').toLowerCase() === 'completed' ? 'View Results' :
+                                        (event.status || '').toLowerCase() === 'upcoming' ? 'View Details' : 'Join'} <FaChevronRight size={12} />
+                                </button>
+                            </div>
                         </motion.div>
-                    ))}
+                    )) : (
+                        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '4rem 0', color: '#666' }}>
+                            <h2>No events found matching your criteria.</h2>
+                        </div>
+                    )}
                 </AnimatePresence>
             </motion.div>
-        </div>
+        </motion.div>
     );
 };
 

@@ -53,31 +53,33 @@ const Navbar = () => {
     const eventIdFromUrl = match ? match[1] : null;
     const isEventPage = !!eventIdFromUrl;
 
+    // Arena pages are any /event/:id/* sub-routes (challenges, leaderboard, etc.)
+    const isArenaPage = isEventPage && location.pathname !== `/event/${eventIdFromUrl}`;
+
     const isDashboardPage =
         location.pathname.startsWith('/dashboard') ||
         location.pathname === '/profile';
 
     const isAdminPage = location.pathname.startsWith('/administration');
+    const isStandalonePage = location.pathname.startsWith('/classic-leaderboard');
+
+    // Hide entirely on standalone pages
+    if (isStandalonePage) return null;
 
     // 🔗 Define Link Sets
     let currentLinks = [];
 
     if (isAdminPage) {
         currentLinks = []; // Hide standard links on admin dashboard
+    } else if (isArenaPage) {
+        currentLinks = []; // Sidebar handles navigation inside the arena
     } else if (isEventPage) {
+        // Only on the /event/:id detail page itself
         currentLinks = [
-            // 🚫 Hide Challenges if Upcoming
-            ...(eventStatus !== 'upcoming' ? [{ name: 'Challenges', href: `/event/${eventIdFromUrl}/challenges`, isPage: true }] : []),
-            { name: 'Leaderboard', href: `/event/${eventIdFromUrl}/leaderboard`, isPage: true },
             { name: 'Exit Event', href: '/dashboard', isPage: true },
         ];
     } else if (isDashboardPage) {
-        currentLinks = [
-            { name: 'Home', href: '/dashboard', isPage: true },
-            { name: 'My Events', href: '/dashboard#events', isPage: true },
-            { name: 'Host Event', href: '/dashboard/host-event', isPage: true },
-            { name: 'Profile', href: '/profile', isPage: true },
-        ];
+        currentLinks = [];
     } else {
         // Landing Page
         currentLinks = [

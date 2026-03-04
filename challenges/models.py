@@ -188,3 +188,37 @@ class ChallengeAttachment(models.Model):
     def __str__(self):
         return f"{self.challenge.title} - {self.file.name}"
 
+
+
+class Announcement(models.Model):
+    TYPE_CHOICES = [
+        ('info', 'Info'),
+        ('warning', 'Warning'),
+        ('danger', 'Danger'),
+        ('success', 'Success')
+    ]
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='announcements')
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='info')
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'[{self.event.event_name}] {self.title}'
+
+
+class WriteUp(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='writeups')
+    challenge = models.ForeignKey(Challenge, on_delete=models.CASCADE, related_name='writeups')
+    content = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'challenge')
+
+    def __str__(self):
+        return f'{self.user.username} WriteUp: {self.challenge.title}'

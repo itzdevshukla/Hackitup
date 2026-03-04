@@ -1,10 +1,11 @@
+from ctf.utils import encode_id
 from django.http import JsonResponse
 from django.contrib.auth.models import User
 from django.db.models import Count, Sum, Min, Max
 from datetime import datetime
 from django.utils import timezone
 from administration.models import Event, EventRole
-from challenges.models import Challenge, UserChallenge, ChallengeHint, ChallengeAttachment, ChallengeWave
+from challenges.models import Challenge, UserChallenge, ChallengeHint, UserHint, ChallengeAttachment, ChallengeWave, WriteUp
 from dashboard.models import EventAccess
 import json
 import openpyxl
@@ -13,6 +14,8 @@ import string
 from django.http import HttpResponse
 from django.contrib.auth.hashers import make_password
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_POST, require_GET
 
 def is_admin(user, event_id=None):
     if not user.is_authenticated:
@@ -61,7 +64,7 @@ def admin_users_api(request):
     users_data = []
     for user in users:
         users_data.append({
-            "id": user.id,
+            "id": encode_id(user.id),
             "username": user.username,
             "email": user.email,
             "is_active": user.is_active,
@@ -91,35 +94,40 @@ def admin_user_detail_api(request, user_id):
         solved_data = []
         total_points = 0
         for sc in solved_challenges:
+            challenge = sc.challenge
+            event_name = challenge.event.event_name if challenge and challenge.event else "Unknown Event"
+            
             solved_data.append({
-                "challenge_id": sc.challenge.id,
-                "title": sc.challenge.title,
-                "event": sc.challenge.event.event_name,
-                "points": sc.challenge.points,
-                "submitted_at": sc.submitted_at.strftime("%Y-%m-%d %H:%M:%S")
+                "challenge_id": encode_id(challenge.id if challenge else None),
+                "title": challenge.title if challenge else "Unknown",
+                "event": event_name,
+                "points": challenge.points if challenge else 0,
+                "submitted_at": sc.submitted_at.strftime("%Y-%m-%d %H:%M:%S") if sc.submitted_at else None
             })
-            total_points += sc.challenge.points
+            if challenge and challenge.points:
+                total_points += challenge.points
             
         # Get joined events
         joined_events = EventAccess.objects.filter(user=user).select_related('event')
         events_data = []
         for ae in joined_events:
+            event = ae.event
             events_data.append({
-                "id": ae.event.id,
-                "name": ae.event.event_name,
-                "status": ae.event.status
+                "id": encode_id(event.id if event else None),
+                "name": event.event_name if event else "Unknown Event",
+                "status": event.status if event and getattr(event, 'status', None) else "unknown"
             })
 
         return JsonResponse({
             "user": {
-                "id": user.id,
+                "id": encode_id(user.id),
                 "username": user.username,
                 "email": user.email,
                 "first_name": user.first_name,
                 "last_name": user.last_name,
                 "is_active": user.is_active,
                 "is_staff": user.is_staff,
-                "date_joined": user.date_joined.strftime("%Y-%m-%d %H:%M:%S"),
+                "date_joined": user.date_joined.strftime("%Y-%m-%d %H:%M:%S") if user.date_joined else None,
             },
             "stats": {
                 "total_points": total_points,
@@ -131,6 +139,10 @@ def admin_user_detail_api(request, user_id):
         })
     except User.DoesNotExist:
         return JsonResponse({"error": "User not found"}, status=404)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({"error": str(e)}, status=500)
 
 def admin_events_api(request):
     if not is_admin(request.user):
@@ -149,7 +161,7 @@ def admin_events_api(request):
     events_data = []
     for event in events:
         events_data.append({
-            "id": event.id,
+            "id": encode_id(event.id),
             "name": event.event_name,
             "venue": event.venue,
             "status": event.status,
@@ -180,7 +192,7 @@ def admin_event_requests_api(request):
     requests_data = []
     for req in requests:
         requests_data.append({
-            "id": req.id,
+            "id": encode_id(req.id),
             "event_name": req.event_name,
             "venue": req.venue,
             "description": req.description,
@@ -275,7 +287,7 @@ def admin_add_event_api(request):
             
             return JsonResponse({
                 "message": "Event created successfully",
-                "event_id": event.id,
+                "event_id": encode_id(event.id),
                 "access_code": event.access_code
             }, status=201)
             
@@ -388,6 +400,16 @@ def admin_event_control_api(request, event_id):
                 event.save()
                 return JsonResponse({"message": "Event ended permanently"})
                 
+            elif action == 'start_writeups':
+                event.accepting_writeups = True
+                event.save()
+                return JsonResponse({"message": "Now accepting writeups"})
+                
+            elif action == 'stop_writeups':
+                event.accepting_writeups = False
+                event.save()
+                return JsonResponse({"message": "Stopped accepting writeups"})
+                
             else:
                 return JsonResponse({"error": "Unknown action"}, status=400)
                 
@@ -410,12 +432,12 @@ def admin_event_detail_api(request, event_id):
         challenges_data = []
         for c in challenges:
             challenges_data.append({
-                "id": c.id,
+                "id": encode_id(c.id),
                 "title": c.title,
                 "description": c.description,
                 "category": c.category,
                 "points": c.points,
-                "wave_id": c.wave_id,
+                "wave_id": encode_id(c.wave_id),
                 "solves": UserChallenge.objects.filter(challenge=c, is_correct=True).count()
             })
             
@@ -424,25 +446,28 @@ def admin_event_detail_api(request, event_id):
         participants_data = []
         for p in participants:
             participants_data.append({
-                "id": p.user.id,
+                "id": encode_id(p.user.id),
                 "username": p.user.username,
                 "joined_at": p.created_at.strftime("%Y-%m-%d %H:%M:%S") if hasattr(p, 'created_at') else None
             })
 
         return JsonResponse({
             "event": {
-                "id": event.id,
+                "id": encode_id(event.id),
                 "name": event.event_name,
                 "venue": event.venue,
                 "status": event.status,
                 "description": event.description,
                 "ctf_type": event.ctf_type,
+                "max_participants": event.max_participants,
+                "rules": event.rules,
                 "access_code": event.access_code,
                 "is_approved": event.is_approved,
                 "is_rejected": event.is_rejected,
                 "is_paused": event.is_paused,
                 "is_registration_paused": event.is_registration_paused,
                 "is_registration_open": event.is_registration_open(),
+                "accepting_writeups": event.accepting_writeups,
                 "start_date": event.start_date.strftime("%Y-%m-%d") if event.start_date else None,
                 "start_time": event.start_time.strftime("%H:%M") if event.start_time else None,
                 "end_date": event.end_date.strftime("%Y-%m-%d") if event.end_date else None,
@@ -462,6 +487,52 @@ def admin_event_detail_api(request, event_id):
         })
     except Event.DoesNotExist:
         return JsonResponse({"error": "Event not found"}, status=404)
+
+@csrf_exempt
+def admin_user_writeups_api(request, event_id, user_id):
+    if not is_admin(request.user, event_id=event_id):
+        return JsonResponse({"error": "Forbidden"}, status=403)
+        
+    try:
+        event = Event.objects.get(id=event_id)
+        user = User.objects.get(id=user_id)
+    except (Event.DoesNotExist, User.DoesNotExist):
+        return JsonResponse({"error": "Event or User not found"}, status=404)
+        
+    if request.method == "GET":
+        wus = WriteUp.objects.filter(user=user, challenge__event=event).select_related('challenge')
+        data = []
+        for w in wus:
+            data.append({
+                'challenge_id': encode_id(w.challenge.id),
+                'challenge_title': w.challenge.title,
+                'content': w.content,
+                'submitted_at': w.challenge.created_at.isoformat() if hasattr(w.challenge, 'created_at') else None
+            })
+        return JsonResponse({'writeups': data})
+        
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+@csrf_exempt
+def admin_update_event_rules_api(request, event_id):
+    if not is_admin(request.user, event_id=event_id):
+        return JsonResponse({"error": "Forbidden"}, status=403)
+        
+    try:
+        event = Event.objects.get(id=event_id)
+    except Event.DoesNotExist:
+        return JsonResponse({"error": "Event not found"}, status=404)
+        
+    if request.method == 'PUT':
+        try:
+            data = json.loads(request.body)
+            event.rules = data.get('rules', '')
+            event.save()
+            return JsonResponse({"message": "Rules updated successfully"})
+        except json.JSONDecodeError:
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+            
+    return JsonResponse({"error": "Method not allowed"}, status=405)
 
 from django.views.decorators.csrf import csrf_exempt
 
@@ -569,7 +640,7 @@ def admin_create_challenge_api(request, event_id):
                 if key.startswith("new_files"):
                     ChallengeAttachment.objects.create(challenge=challenge, file=uploaded_file)
 
-            return JsonResponse({"message": "Challenge created successfully", "id": challenge.id}, status=201)
+            return JsonResponse({"message": "Challenge created successfully", "id": encode_id(challenge.id)}, status=201)
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -590,7 +661,7 @@ def admin_challenge_detail_api(request, event_id, challenge_id):
         
     if request.method == "GET":
         return JsonResponse({
-            "id": challenge.id,
+            "id": encode_id(challenge.id),
             "title": challenge.title,
             "description": challenge.description,
             "category": challenge.category,
@@ -598,10 +669,10 @@ def admin_challenge_detail_api(request, event_id, challenge_id):
             "has_flag": bool(challenge.flag),
             "flag_format": challenge.flag_format,
             "url": challenge.url,
-            "wave_id": challenge.wave_id,
+            "wave_id": encode_id(challenge.wave_id),
             "wave_name": challenge.wave.name if challenge.wave else None,
             "hints": [{"content": h.content, "cost": h.cost} for h in challenge.hints.all()],
-            "attachments": [{"id": a.id, "file_name": a.file.name.split('/')[-1], "file_url": a.file.url} for a in challenge.attachments.all()],
+            "attachments": [{"id": encode_id(a.id), "file_name": a.file.name.split('/')[-1], "file_url": a.file.url} for a in challenge.attachments.all()],
             "solves": UserChallenge.objects.filter(challenge=challenge, is_correct=True).count()
         })
         
@@ -702,7 +773,7 @@ def admin_waves_api(request, event_id):
         waves = event.waves.all().order_by('order', 'created_at')
         return JsonResponse({"waves": [
             {
-                "id": w.id,
+                "id": encode_id(w.id),
                 "name": w.name,
                 "order": w.order,
                 "is_active": w.is_active,
@@ -718,7 +789,7 @@ def admin_waves_api(request, event_id):
             if not name:
                 return JsonResponse({"error": "Wave name is required"}, status=400)
             wave = ChallengeWave.objects.create(event=event, name=name, order=order)
-            return JsonResponse({"id": wave.id, "name": wave.name, "order": wave.order, "is_active": wave.is_active, "challenge_count": 0}, status=201)
+            return JsonResponse({"id": encode_id(wave.id), "name": wave.name, "order": wave.order, "is_active": wave.is_active, "challenge_count": 0}, status=201)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
 
@@ -738,6 +809,8 @@ def admin_wave_detail_api(request, event_id, wave_id):
     if request.method == "PUT":
         try:
             data = json.loads(request.body)
+            was_active = wave.is_active
+            
             if "is_active" in data:
                 wave.is_active = bool(data["is_active"])
             if "name" in data:
@@ -747,7 +820,19 @@ def admin_wave_detail_api(request, event_id, wave_id):
             if "order" in data:
                 wave.order = int(data["order"])
             wave.save()
-            return JsonResponse({"id": wave.id, "name": wave.name, "is_active": wave.is_active, "order": wave.order})
+            
+            # Auto-generate announcement when a wave is unpaused
+            if not was_active and wave.is_active:
+                from challenges.models import Announcement
+                Announcement.objects.create(
+                    event_id=event_id,
+                    title=f"Wave Released: {wave.name}",
+                    content=f"Attention hackers! The challenges for {wave.name} are now LIVE. Good luck!",
+                    type="info",
+                    created_by=request.user
+                )
+                
+            return JsonResponse({"id": encode_id(wave.id), "name": wave.name, "is_active": wave.is_active, "order": wave.order})
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=400)
 
@@ -772,11 +857,11 @@ def admin_wave_challenges_api(request, event_id, wave_id):
         all_challenges = Challenge.objects.filter(event_id=event_id).order_by('category', 'title')
         return JsonResponse({"challenges": [
             {
-                "id": c.id,
+                "id": encode_id(c.id),
                 "title": c.title,
                 "category": c.category,
                 "points": c.points,
-                "wave_id": c.wave_id,
+                "wave_id": encode_id(c.wave_id),
                 "wave_name": c.wave.name if c.wave else None,
             } for c in all_challenges
         ]})
@@ -899,7 +984,7 @@ def admin_import_users_api(request):
 
     # GET Request: Generate active events for modal dropdown
     events = Event.objects.filter(status__in=['upcoming', 'live']).order_by('-created_at')
-    events_data = [{"id": e.id, "name": e.event_name} for e in events]
+    events_data = [{"id": encode_id(e.id), "name": e.event_name} for e in events]
     return JsonResponse({"events": events_data})
 
 @csrf_exempt
@@ -914,7 +999,7 @@ def admin_event_participants_api(request, event_id):
         participants_data = []
         for reg in registrations:
             participants_data.append({
-                "id": reg.user.id,
+                "id": encode_id(reg.user.id),
                 "username": reg.user.username,
                 "email": reg.user.email,
                 "joined_at": reg.granted_at.strftime("%Y-%m-%d %H:%M:%S") if hasattr(reg, 'granted_at') and reg.granted_at else None,
@@ -938,7 +1023,7 @@ def admin_event_leaderboard_api(request, event_id):
     try:
         event = Event.objects.get(id=event_id)
         
-        leaderboard = (
+        leaderboard = list(
             UserChallenge.objects
             .filter(
                 challenge__event=event,
@@ -953,14 +1038,30 @@ def admin_event_leaderboard_api(request, event_id):
                 first_solve=Min("submitted_at"),
                 last_solve=Max("submitted_at")
             )
-            .order_by("-total_points", "last_solve")
         )
+        
+        # Get hint deductions
+        user_hints = (
+            UserHint.objects
+            .filter(hint__challenge__event=event)
+            .values("user__id")
+            .annotate(total_deduction=Sum("hint__cost"))
+        )
+        hint_deductions = {item["user__id"]: item["total_deduction"] for item in user_hints}
+
+        # Apply deductions
+        for entry in leaderboard:
+            deduction = hint_deductions.get(entry["user__id"], 0)
+            entry["total_points"] = max(0, entry["total_points"] - deduction)
+            
+        # Re-sort manually in Python (descending points, ascending time)
+        leaderboard.sort(key=lambda x: (-x["total_points"], x["last_solve"]))
         
         leaderboard_data = []
         for rank, entry in enumerate(leaderboard, start=1):
             leaderboard_data.append({
                 "rank": rank,
-                "user_id": entry["user__id"],
+                "user_id": encode_id(entry["user__id"]),
                 "username": entry["user__username"],
                 "total_points": entry["total_points"],
                 "solves": entry["solves"],
@@ -983,7 +1084,7 @@ def admin_event_submissions_api(request, event_id):
         event = Event.objects.get(id=event_id)
         
         # Check flag visibility permissions
-        can_see_flag = request.user.is_superuser
+        can_see_flag = request.user.is_superuser or (event.created_by == request.user)
         if not can_see_flag:
             can_see_flag = EventRole.objects.filter(event=event, user=request.user, role='organizer').exists()
         
@@ -996,18 +1097,14 @@ def admin_event_submissions_api(request, event_id):
         
         submissions_data = []
         for s in submissions:
-            if can_see_flag:
-                flag_display = s.submitted_flag
-            else:
-                flag_display = "CORRECT" if s.is_correct else "INCORRECT"
-                
+            flag_val = s.submitted_flag if (can_see_flag or not s.is_correct) else "CORRECT"
             submissions_data.append({
-                "id": s.id,
-                "user_id": s.user.id,
+                "id": encode_id(s.id),
+                "user_id": encode_id(s.user.id),
                 "username": s.user.username,
-                "challenge_id": s.challenge.id,
+                "challenge_id": encode_id(s.challenge.id),
                 "challenge_title": s.challenge.title,
-                "flag": flag_display,
+                "flag": flag_val,
                 "is_correct": s.is_correct,
                 "submitted_at": s.submitted_at.strftime("%Y-%m-%d %H:%M:%S") if s.submitted_at else None
             })
@@ -1029,7 +1126,7 @@ def admin_user_event_submissions_api(request, event_id, user_id):
         user = User.objects.get(id=user_id)
         
         # Check flag visibility permissions
-        can_see_flag = request.user.is_superuser
+        can_see_flag = request.user.is_superuser or (event.created_by == request.user)
         if not can_see_flag:
             can_see_flag = EventRole.objects.filter(event=event, user=request.user, role='organizer').exists()
 
@@ -1042,53 +1139,78 @@ def admin_user_event_submissions_api(request, event_id, user_id):
         
         submissions_data = []
         for s in submissions:
-            if can_see_flag:
-                flag_display = s.submitted_flag
-            else:
-                flag_display = "CORRECT" if s.is_correct else "INCORRECT"
-                
+            flag_val = s.submitted_flag if (can_see_flag or not s.is_correct) else "CORRECT"
             submissions_data.append({
-                "id": s.id,
+                "id": encode_id(s.id),
                 "challenge_title": s.challenge.title,
-                "flag": flag_display,
+                "flag": flag_val,
                 "is_correct": s.is_correct,
                 "submitted_at": s.submitted_at.strftime("%Y-%m-%d %H:%M:%S") if s.submitted_at else None
+            })
+            
+        hints = (
+            UserHint.objects
+            .filter(hint__challenge__event=event, user=user)
+            .select_related("hint__challenge")
+            .order_by("-unlocked_at")
+        )
+        hints_data = []
+        for h in hints:
+            hints_data.append({
+                "id": encode_id(h.id),
+                "challenge_title": h.hint.challenge.title,
+                "cost": h.hint.cost,
+                "unlocked_at": h.unlocked_at.strftime("%Y-%m-%d %I:%M %p") if h.unlocked_at else None
             })
             
         return JsonResponse({
             "event_name": event.event_name,
             "username": user.username,
-            "submissions": submissions_data
+            "submissions": submissions_data,
+            "hints_taken": hints_data
         })
     except (Event.DoesNotExist, User.DoesNotExist):
         return JsonResponse({"error": "Event or User not found"}, status=404)
 
 @csrf_exempt
 def admin_toggle_ban_participant_api(request, event_id, user_id):
-    if not is_admin(request.user):
-        return JsonResponse({"error": "Forbidden"}, status=403)
-        
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Unauthorized"}, status=401)
+
     if request.method == 'POST':
         try:
             event = Event.objects.get(id=event_id)
+
+            # Allow: superuser, staff, organizer, or event_admin for this event
+            is_super = request.user.is_superuser or request.user.is_staff
+            has_role = EventRole.objects.filter(
+                event=event,
+                user=request.user,
+                role__in=['organizer', 'admin']
+            ).exists()
+
+            if not is_super and not has_role:
+                return JsonResponse({"error": "Forbidden — insufficient permissions to ban users"}, status=403)
+
             user = User.objects.get(id=user_id)
             access = EventAccess.objects.get(event=event, user=user)
-            
+
             # Toggle the ban status
             access.is_banned = not access.is_banned
             access.save()
-            
+
             # The user's score will dynamically drop from the leaderboard because the leaderboard
             # query now strictly filters out users where `is_banned=True`.
-            
+
             return JsonResponse({
                 "message": f"User {'banned' if access.is_banned else 'unbanned'} successfully",
                 "is_banned": access.is_banned
             })
         except (Event.DoesNotExist, User.DoesNotExist, EventAccess.DoesNotExist):
             return JsonResponse({"error": "Event, User, or Access record not found"}, status=404)
-            
+
     return JsonResponse({"error": "Method not allowed"}, status=405)
+
 
 @csrf_exempt
 def admin_export_event_data_api(request, event_id):
@@ -1219,8 +1341,8 @@ def admin_event_roles_api(request, event_id):
         roles = EventRole.objects.filter(event=event).select_related('user')
         roles_data = [
             {
-                "id": r.id,
-                "user_id": r.user.id,
+                "id": encode_id(r.id),
+                "user_id": encode_id(r.user.id),
                 "username": r.user.username,
                 "email": r.user.email,
                 "role": r.role,
@@ -1293,12 +1415,12 @@ def admin_test_challenges_list_api(request, event_id):
         challenges_data = []
         for c in challenges:
             challenges_data.append({
-                "id": c.id,
+                "id": encode_id(c.id),
                 "title": c.title,
                 "description": c.description,
                 "category": c.category,
                 "points": c.points,
-                "wave_id": c.wave_id,
+                "wave_id": encode_id(c.wave_id),
                 "wave_name": c.wave.name if c.wave else None,
                 "flag_format": c.flag_format,
                 "solves_count": 0, # Placeholder for UI
@@ -1308,7 +1430,7 @@ def admin_test_challenges_list_api(request, event_id):
                 "difficulty": c.difficulty,
                 "url": c.url,
                 "files": [{"url": f.file.url} for f in c.attachments.all()],
-                "hints": [{"id": h.id, "cost": h.cost, "is_unlocked": True, "content": h.content} for h in c.hints.all()] # Admins always see hints
+                "hints": [{"id": encode_id(h.id), "cost": h.cost, "is_unlocked": True, "content": h.content} for h in c.hints.all()] # Admins always see hints
             })
             
         return JsonResponse({
@@ -1353,5 +1475,84 @@ def admin_test_challenge_flag_api(request, challenge_id):
             
     except json.JSONDecodeError:
         return JsonResponse({"error": "Invalid JSON"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+@login_required
+@require_POST
+def admin_create_announcement_api(request, event_id):
+    """
+    Creates a new Announcement for the given event.
+    Only accessible by an Admin of the event.
+    """
+    if not is_admin(request.user, event_id=event_id):
+        return JsonResponse({"error": "Forbidden: Admin access only"}, status=403)
+        
+    try:
+        event = Event.objects.get(id=event_id)
+        data = json.loads(request.body)
+        title = data.get('title', '').strip()
+        content = data.get('content', '').strip()
+        announcement_type = data.get('type', 'info').strip().lower()
+        
+        if not title or not content:
+            return JsonResponse({"error": "Title and content are required."}, status=400)
+            
+        valid_types = [t[0] for t in __import__('challenges.models', fromlist=['Announcement']).Announcement.TYPE_CHOICES]
+        if announcement_type not in valid_types:
+            announcement_type = 'info'
+            
+        from challenges.models import Announcement
+        
+        announcement = Announcement.objects.create(
+            event=event,
+            title=title,
+            content=content,
+            type=announcement_type,
+            created_by=request.user
+        )
+        
+        return JsonResponse({
+            "success": True, 
+            "message": "Announcement created.",
+            "announcement": {
+                "id": encode_id(announcement.id),
+                "title": announcement.title,
+                "content": announcement.content,
+                "type": announcement.type,
+                "created_at": announcement.created_at.isoformat()
+            }
+        })
+        
+    except Event.DoesNotExist:
+        return JsonResponse({"error": "Event not found"}, status=404)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON payload"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+
+
+@csrf_exempt
+@login_required
+@require_POST
+def admin_delete_announcement_api(request, event_id, announcement_id):
+    """
+    Deletes an Announcement for the given event.
+    Only accessible by an Admin of the event.
+    """
+    if not is_admin(request.user, event_id=event_id):
+        return JsonResponse({"error": "Forbidden: Admin access only"}, status=403)
+        
+    try:
+        from challenges.models import Announcement
+        announcement = Announcement.objects.get(id=announcement_id, event_id=event_id)
+        announcement.delete()
+        
+        return JsonResponse({"success": True, "message": "Announcement deleted successfully."})
+        
+    except Announcement.DoesNotExist:
+        return JsonResponse({"error": "Announcement not found."}, status=404)
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)

@@ -111,15 +111,6 @@ const Hero = () => {
                                 <span>Start Hacking</span>
                                 <FaArrowRight />
                             </motion.a>
-                            <motion.a
-                                href="#"
-                                className="btn-secondary"
-                                whileHover={{ scale: 1.05, borderColor: '#39FF14', color: '#39FF14' }}
-                                whileTap={{ scale: 0.95 }}
-                            >
-                                <FaPlay />
-                                <span>Watch Intro</span>
-                            </motion.a>
                         </div>
                     </motion.div>
 
