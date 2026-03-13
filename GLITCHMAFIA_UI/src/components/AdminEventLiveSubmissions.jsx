@@ -5,7 +5,7 @@ import { FaEye, FaArrowLeft, FaCheck, FaTimes, FaSearch, FaExpand, FaCompress } 
 
 function AdminEventLiveSubmissions() {
     const { id } = useParams();
-    const [data, setData] = useState({ event_name: '', submissions: [] });
+    const [data, setData] = useState({ event_name: '', is_team_mode: false, submissions: [] });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -68,7 +68,8 @@ function AdminEventLiveSubmissions() {
 
     const filteredSubmissions = data.submissions.filter(s =>
         s.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        s.challenge_title.toLowerCase().includes(searchQuery.toLowerCase())
+        s.challenge_title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.team_name && s.team_name.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
     const renderTable = () => (
@@ -94,6 +95,7 @@ function AdminEventLiveSubmissions() {
                     <tr>
                         <th>Time</th>
                         <th>Username</th>
+                        {data.is_team_mode && <th>Team</th>}
                         <th>Challenge</th>
                         <th>Submitted Flag</th>
                         <th>Result</th>
@@ -108,6 +110,15 @@ function AdminEventLiveSubmissions() {
                                     {s.username}
                                 </Link>
                             </td>
+                            {data.is_team_mode && (
+                                <td>
+                                    {s.team_id ? (
+                                        <span style={{ color: '#00bfff', fontWeight: 'bold' }}>{s.team_name}</span>
+                                    ) : (
+                                        <span style={{ color: '#aaa', fontStyle: 'italic' }}>No Team</span>
+                                    )}
+                                </td>
+                            )}
                             <td>{s.challenge_title}</td>
                             <td style={{ fontFamily: 'monospace', color: '#aaa' }}>
                                 {s.flag}
@@ -127,7 +138,7 @@ function AdminEventLiveSubmissions() {
                     ))}
                     {filteredSubmissions.length === 0 && (
                         <tr>
-                            <td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>No matching submissions found.</td>
+                            <td colSpan={data.is_team_mode ? "6" : "5"} style={{ textAlign: 'center', padding: '20px' }}>No matching submissions found.</td>
                         </tr>
                     )}
                 </tbody>
@@ -163,7 +174,7 @@ function AdminEventLiveSubmissions() {
                     <input
                         type="text"
                         className="admin-search-input"
-                        placeholder="Search by Username or Challenge..."
+                        placeholder={data.is_team_mode ? "Search by Username, Team, or Challenge..." : "Search by Username or Challenge..."}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />

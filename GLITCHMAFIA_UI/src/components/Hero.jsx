@@ -74,7 +74,7 @@ const Hero = () => {
                         </div>
                         <h1 className="hero-title">
                             WELCOME TO<br />
-                            <span className="neon-text glitch" data-text="HACK!T">HACK!T</span>
+                            <span className="neon-text glitch" data-text="HACK!T">HACK!T</span>UP
                         </h1>
                         <p className="hero-subtitle">
                             Unlock alien technologies. Decrypt the secrets. Dominate the leaderboard.

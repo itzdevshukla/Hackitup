@@ -54,8 +54,14 @@ def event_writeups_api(request, event_id):
             return JsonResponse({'error': 'Write-up submission is currently closed for this event.'}, status=403)
             
         body = json.loads(request.body)
-        challenge_id = body.get('challenge_id')
+        challenge_id_encoded = body.get('challenge_id')
         content = body.get('content', '')
+
+        from ctf.utils import decode_id
+        challenge_id = decode_id(challenge_id_encoded)
+        if challenge_id is None:
+            return JsonResponse({'error': 'Invalid challenge ID.'}, status=400)
+
         challenge = get_object_or_404(Challenge, id=challenge_id, event=event)
 
         # Only allow writeups for solved challenges
@@ -79,12 +85,12 @@ def event_challenges_api(request, event_id):
     # Check access
     access = EventAccess.objects.filter(user=request.user, event=event).first()
     if not access or not access.is_registered:
-         return JsonResponse({'error': 'Not registered'}, status=403)
+         return JsonResponse({'error': 'Not registered', 'event': event.event_name}, status=403)
 
     # Block access if event hasn't started yet
     current_status = event.get_current_status()
     if current_status in ('upcoming', 'pending'):
-        return JsonResponse({'error': f'This event has not started yet. Current status: {current_status.upper()}'}, status=403)
+        return JsonResponse({'error': f'This event has not started yet. Current status: {current_status.upper()}', 'event': event.event_name}, status=403)
 
     # Pass the ban status to the frontend so it can render a specific ban page
     is_banned = access.is_banned
@@ -94,15 +100,55 @@ def event_challenges_api(request, event_id):
         models.Q(wave__isnull=True) | models.Q(wave__is_active=True)
     ).order_by('category', 'points')
     
+    # Check for team requirement
+    is_team_mode = event.is_team_mode
+    needs_team = False
+    if is_team_mode:
+        from teams.models import TeamMember
+        has_team = TeamMember.objects.filter(user=request.user, team__event=event).exists()
+        if not has_team:
+            needs_team = True
+    
+    if needs_team:
+        return JsonResponse({
+            'event': event.event_name,
+            'status': event.get_current_status(),
+            'is_banned': is_banned,
+            'is_team_mode': True,
+            'needs_team': True,
+            'challenges': []
+        })
+            
     # Get solved status
-    solved_ids = UserChallenge.objects.filter(
-        user=request.user,
-        challenge__event=event,
-        is_correct=True
-    ).values_list('challenge_id', flat=True)
+    if is_team_mode:
+        from teams.models import TeamChallenge, TeamMember
+        # In team mode, a challenge is solved if the user's team solved it
+        user_team = TeamMember.objects.filter(user=request.user, team__event=event).first()
+        if user_team:
+            solved_ids = TeamChallenge.objects.filter(
+                team=user_team.team,
+                challenge__event=event
+            ).values_list('challenge_id', flat=True)
+        else:
+            solved_ids = []
+    else:
+        solved_ids = UserChallenge.objects.filter(
+            user=request.user,
+            challenge__event=event,
+            is_correct=True
+        ).values_list('challenge_id', flat=True)
     
     challenges_data = []
     for challenge in challenges:
+        # Check Solves count based on mode
+        if is_team_mode:
+            from teams.models import TeamChallenge
+            solves_count = TeamChallenge.objects.filter(challenge=challenge).count()
+            first_blood_rcd = TeamChallenge.objects.filter(challenge=challenge).order_by('solved_at').first()
+        else:
+            solves_count = UserChallenge.objects.filter(challenge=challenge, is_correct=True).count()
+            first_blood_rcd = UserChallenge.objects.filter(challenge=challenge, is_correct=True).order_by('submitted_at').first()
+            
         challenges_data.append({
             'id': encode_id(challenge.id),
             'title': challenge.title,
@@ -112,8 +158,8 @@ def event_challenges_api(request, event_id):
             'points': challenge.points,
             'author': challenge.author.username if challenge.author else 'Unknown',
             'is_solved': challenge.id in solved_ids,
-            'solves_count': UserChallenge.objects.filter(challenge=challenge, is_correct=True).count(),
-            'first_blood': UserChallenge.objects.filter(challenge=challenge, is_correct=True).order_by('submitted_at').first(),
+            'solves_count': solves_count,
+            'first_blood': first_blood_rcd,
             'url': challenge.url if hasattr(challenge, 'url') else None,
             'flag_format': challenge.flag_format if hasattr(challenge, 'flag_format') else 'Hack!tUp{...}',
             'files': [{'name': f.file.name.split('/')[-1], 'url': f.file.url} for f in challenge.attachments.all()],
@@ -130,18 +176,26 @@ def event_challenges_api(request, event_id):
                 'is_unlocked': is_unlocked
             })
         
-        # Serialize first_blood user if exists
+        # Serialize first_blood
         if challenges_data[-1]['first_blood']:
-            challenges_data[-1]['first_blood'] = {
-                'username': challenges_data[-1]['first_blood'].user.username,
-                'time': challenges_data[-1]['first_blood'].submitted_at
-            }
+            if is_team_mode:
+                challenges_data[-1]['first_blood'] = {
+                    'username': challenges_data[-1]['first_blood'].team.name,
+                    'time': challenges_data[-1]['first_blood'].solved_at
+                }
+            else:
+                challenges_data[-1]['first_blood'] = {
+                    'username': challenges_data[-1]['first_blood'].user.username,
+                    'time': challenges_data[-1]['first_blood'].submitted_at
+                }
         
     return JsonResponse({
         'event': event.event_name, 
         'status': event.get_current_status(),
         'is_banned': is_banned,
         'accepting_writeups': event.accepting_writeups,
+        'is_team_mode': is_team_mode,
+        'needs_team': False,
         'challenges': challenges_data if not is_banned else []
     })
 @login_required
@@ -171,14 +225,30 @@ def submit_flag_api(request, challenge_id):
     event = challenge.event
     
     access = EventAccess.objects.filter(user=request.user, event=event).first()
-    if not access or not access.is_registered or access.is_banned:
-        return JsonResponse({'error': 'Access denied'}, status=403)
+    is_admin_or_creator = request.user.is_superuser or request.user.is_staff or getattr(request.user, 'role', '') in ['admin', 'organizer'] or event.created_by == request.user
+
+    if not is_admin_or_creator:
+        if not access or not access.is_registered or access.is_banned:
+            return JsonResponse({'error': 'Access denied'}, status=403)
+    elif access and access.is_banned:
+        return JsonResponse({'error': 'Access denied (banned)'}, status=403)
         
     current_status = event.get_current_status()
     if current_status != 'live':
         return JsonResponse({'error': f'Event is currently {current_status}. Submissions are closed.'}, status=403)
 
-    # Check if already solved
+    # ── Team mode: check if challenge already solved by team ──────────
+    if event.is_team_mode:
+        from teams.models import TeamMember, TeamChallenge
+        membership = TeamMember.objects.filter(user=request.user, team__event=event).first()
+        if membership:
+            team_already_solved = TeamChallenge.objects.filter(
+                team=membership.team, challenge=challenge
+            ).exists()
+            if team_already_solved:
+                return JsonResponse({'success': False, 'message': 'Your team has already solved this challenge'})
+
+    # Check if already solved (individual, for non-team or fallback)
     already_solved = UserChallenge.objects.filter(
         user=request.user, 
         challenge=challenge, 
@@ -202,6 +272,17 @@ def submit_flag_api(request, challenge_id):
         # Update submission to be correct
         user_submission.is_correct = True
         user_submission.save()
+
+        # ── Team mode: credit solve to the team ───────────────────────
+        if event.is_team_mode:
+            from teams.models import TeamMember, TeamChallenge
+            membership = TeamMember.objects.filter(user=request.user, team__event=event).first()
+            if membership:
+                TeamChallenge.objects.get_or_create(
+                    team=membership.team,
+                    challenge=challenge,
+                    defaults={'solved_by': request.user}
+                )
         
         if event.status == 'ended':
              return JsonResponse({'success': True, 'message': 'Correct (Practice Mode)', 'points': 0})
@@ -216,30 +297,121 @@ def event_leaderboard_api(request, event_id):
     event = get_object_or_404(Event, id=event_id)
     User = get_user_model()
 
-    # Get all users who have solved at least one challenge in this event
-    # We aggregate points and find the latest submission time for tie-breaking
-    
-    # 1. Get all correct submissions for this event
+    # ── TEAM MODE LEADERBOARD ────────────────────────────────────────
+    if event.is_team_mode:
+        from teams.models import Team, TeamChallenge, TeamMember
+
+        teams = Team.objects.filter(event=event).prefetch_related(
+            'members__user', 'solves__challenge'
+        )
+
+        event_challenges = Challenge.objects.filter(event=event)
+        event_total_challenges = event_challenges.count()
+        event_total_points = event_challenges.aggregate(total=models.Sum('points'))['total'] or 0
+
+        # Build event start datetime
+        if event.start_date and event.start_time:
+            start_dt = datetime.combine(event.start_date, event.start_time)
+            if timezone.is_naive(start_dt):
+                start_dt = timezone.make_aware(start_dt)
+            event_start_iso = start_dt.isoformat()
+        else:
+            start_dt = timezone.now() - timezone.timedelta(hours=1)
+            event_start_iso = start_dt.isoformat()
+
+        team_list = []
+        user_team_id = None
+
+        # Find the current user's team
+        user_membership = TeamMember.objects.filter(user=request.user, team__event=event).first()
+        if user_membership:
+            user_team_id = user_membership.team_id
+
+        for team in teams:
+            solves = sorted(team.solves.all(), key=lambda s: s.solved_at)
+            current_score = 0
+            history = [{
+                'flagName': 'Event Start', 'points': 0, 'total': 0,
+                'timestamp': 'Start', 'rawTime': event_start_iso, 'id': 'start'
+            }]
+
+            for solve in solves:
+                current_score += solve.challenge.points
+                history.append({
+                    'flagName': solve.challenge.title,
+                    'points': solve.challenge.points,
+                    'total': current_score,
+                    'timestamp': solve.solved_at.strftime('%H:%M'),
+                    'rawTime': solve.solved_at.isoformat(),
+                    'id': encode_id(solve.id)
+                })
+
+            history.append({
+                'flagName': 'Current', 'points': 0, 'total': current_score,
+                'timestamp': 'Now', 'rawTime': timezone.now().isoformat(), 'id': 'now'
+            })
+
+            last_solve_time = solves[-1].solved_at if solves else None
+
+            team_list.append({
+                'id': encode_id(team.id),
+                'name': team.name,
+                'captain': team.captain.username,
+                'members': [m.user.username for m in team.members.all()],
+                'member_count': team.members.count(),
+                'points': current_score,
+                'flags': len(solves),
+                'last_solve_time': last_solve_time,
+                'history': history,
+                'avatar': f'https://ui-avatars.com/api/?name={team.name}&background=random&color=fff',
+                'is_my_team': team.id == user_team_id,
+            })
+
+        # Sort: points desc, last solve asc
+        team_list.sort(key=lambda t: (
+            -t['points'],
+            t['last_solve_time'] if t['last_solve_time'] else timezone.now()
+        ))
+
+        current_team_stats = None
+        for idx, team in enumerate(team_list):
+            team['rank'] = idx + 1
+            team['totalFlags'] = event_total_challenges
+            team['progress'] = (team['flags'] / event_total_challenges * 100) if event_total_challenges else 0
+            team['color'] = f"hsl({(idx * 137.5) % 360}, 85%, 60%)"
+            if team['is_my_team']:
+                current_team_stats = team
+
+        if not current_team_stats and user_team_id is None:
+            current_team_stats = {
+                'name': 'No Team',
+                'rank': '-', 'points': 0, 'flags': 0,
+                'totalFlags': event_total_challenges,
+            }
+
+        return JsonResponse({
+            'is_team_mode': True,
+            'leaderboard': team_list,
+            'event': event.event_name,
+            'event_total_points': event_total_points,
+            'event_total_challenges': event_total_challenges,
+            'current_team_stats': current_team_stats,
+        })
+
+    # ── INDIVIDUAL MODE LEADERBOARD (unchanged) ──────────────────────
     submissions = UserChallenge.objects.filter(
         challenge__event=event,
         is_correct=True
     ).select_related('user', 'challenge').order_by('submitted_at')
 
-    # Get all unlocked hints for this event to deduct points
     unlocked_hints = UserHint.objects.filter(
         hint__challenge__event=event
     ).select_related('user', 'hint')
     
-    # Get ALL registered users for this event
     registered_users = EventAccess.objects.filter(event=event).select_related('user')
 
-    # 2. Process data - EVENT SOURCING APPROACH
-    # We collect all "score events" (Solve, Hint) and replay them chronologically
-    # to build the graph and final score. This ensures dips (hints) happen at the right time.
-    
     leaderboard_data = {}
     
-    # Helper to init user
     def get_or_init_user(uid, username):
         if uid not in leaderboard_data:
             leaderboard_data[uid] = {
@@ -250,20 +422,17 @@ def event_leaderboard_api(request, event_id):
                 'flags': 0,
                 'last_solve_time': None,
                 'history': [],
-                'timeline_events': [], # Temporary list to store raw events
+                'timeline_events': [],
                 'avatar': f'https://ui-avatars.com/api/?name={username}&background=random&color=fff'
             }
         return leaderboard_data[uid]
 
-    # Initialize all registered users
     for access in registered_users:
         get_or_init_user(access.user.id, access.user.username)
 
-    # 1. Collect Solves
     processed_solves = set()
     for sub in submissions:
         uid = sub.user.id
-        # Prevent duplicate counting for same challenge
         if (uid, sub.challenge.id) in processed_solves:
             continue
         processed_solves.add((uid, sub.challenge.id))
@@ -276,24 +445,18 @@ def event_leaderboard_api(request, event_id):
             'timestamp': sub.submitted_at,
             'id': encode_id(sub.id)
         })
-        # Track duplicate filter but we calculate final points during replay for consistency?
-        # Actually easier to just track duplicates here.
 
-    # 2. Collect Hints
     for uh in unlocked_hints:
         uid = uh.user.id
         user_data = get_or_init_user(uid, uh.user.username)
         user_data['timeline_events'].append({
             'type': 'hint',
             'name': f"Hint: {uh.hint.challenge.title}",
-            'delta': -uh.hint.cost, # Negative delta
+            'delta': -uh.hint.cost,
             'timestamp': uh.unlocked_at,
             'id': f"hint-{uh.id}"
         })
 
-    # 3. Replay Timeline for each user
-    
-    # Determine global start time
     if event.start_date and event.start_time:
         start_dt = datetime.combine(event.start_date, event.start_time)
         if timezone.is_naive(start_dt):
@@ -304,35 +467,24 @@ def event_leaderboard_api(request, event_id):
         event_start_iso = start_dt.isoformat()
 
     for uid, data in leaderboard_data.items():
-        # Sort events by time
         data['timeline_events'].sort(key=lambda x: x['timestamp'])
         
         current_score = 0
         current_flags = 0
         last_solve = None
 
-        # Add Start Point
         data['history'].append({
-            'flagName': 'Event Start',
-            'points': 0,
-            'total': 0,
-            'timestamp': 'Start',
-            'rawTime': event_start_iso,
-            'id': 'start'
+            'flagName': 'Event Start', 'points': 0, 'total': 0,
+            'timestamp': 'Start', 'rawTime': event_start_iso, 'id': 'start'
         })
 
         for evt in data['timeline_events']:
-            # Apply delta
             current_score += evt['delta']
-            # Prevent negative score? Usually CTFs allow min 0
             if current_score < 0:
                 current_score = 0
-            
             if evt['type'] == 'solve':
                 current_flags += 1
                 last_solve = evt['timestamp']
-            
-            # Add to history
             data['history'].append({
                 'flagName': evt['name'],
                 'points': evt['delta'],
@@ -342,68 +494,51 @@ def event_leaderboard_api(request, event_id):
                 'id': evt['id']
             })
 
-        # Set final stats
         data['points'] = current_score
         data['flags'] = current_flags
         data['last_solve_time'] = last_solve
 
-        # Add End Point (Current)
         data['history'].append({
-            'flagName': 'Current',
-            'points': 0,
-            'total': current_score,
-            'timestamp': 'Now',
-            'rawTime': timezone.now().isoformat(),
-            'id': 'now'
+            'flagName': 'Current', 'points': 0, 'total': current_score,
+            'timestamp': 'Now', 'rawTime': timezone.now().isoformat(), 'id': 'now'
         })
-
-        # Cleanup temp key
         del data['timeline_events']
 
-    # 3. Convert to list and sort
-    # Sort by Points (Desc), then Last Solve Time (Asc)
-    
     sorted_users = sorted(
         leaderboard_data.values(),
         key=lambda x: (-x['points'], x['last_solve_time'] if x['last_solve_time'] else timezone.now())
     )
 
-    # 4. Add Rank
     current_user_stats = None
     
     for index, user in enumerate(sorted_users):
         user['rank'] = index + 1
-        
-        # Add extra fields expected by frontend
-        user['maxPoints'] = 15000 # Mock or calc max possible?
-        user['totalFlags'] = Challenge.objects.filter(event=event).count() # Total challenges in event
+        user['maxPoints'] = 15000
+        user['totalFlags'] = Challenge.objects.filter(event=event).count()
         user['progress'] = (user['flags'] / user['totalFlags']) * 100 if user['totalFlags'] > 0 else 0
-        user['color'] = f"hsl({(index * 137.5) % 360}, 85%, 60%)" # Deterministic random color
+        user['color'] = f"hsl({(index * 137.5) % 360}, 85%, 60%)"
         
-        if user['id'] == request.user.id:
+        if user['id'] == encode_id(request.user.id):
             user['is_me'] = True
             current_user_stats = user
         else:
             user['is_me'] = False
 
-    # If current user is not in leaderboard (no solves), return basic stats
     if not current_user_stats:
         current_user_stats = {
             'id': encode_id(request.user.id),
             'username': request.user.username,
-            'rank': '-',
-            'points': 0,
-            'flags': 0,
+            'rank': '-', 'points': 0, 'flags': 0,
             'totalFlags': Challenge.objects.filter(event=event).count(),
             'avatar': f'https://ui-avatars.com/api/?name={request.user.username}&background=random&color=fff'
         }
 
-    # Event-level totals
     event_challenges = Challenge.objects.filter(event=event)
     event_total_challenges = event_challenges.count()
     event_total_points = event_challenges.aggregate(total=models.Sum('points'))['total'] or 0
 
     return JsonResponse({
+        'is_team_mode': False,
         'leaderboard': sorted_users,
         'event': event.event_name,
         'event_total_points': event_total_points,
@@ -449,3 +584,37 @@ def event_announcements_api(request, event_id):
         
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@login_required
+@require_GET
+def challenge_solvers_api(request, challenge_id):
+    from ctf.utils import decode_id
+    from datetime import datetime
+    
+    challenge = get_object_or_404(Challenge, id=challenge_id)
+    event = challenge.event
+    
+    access = EventAccess.objects.filter(user=request.user, event=event).first()
+    if not access or not access.is_registered or access.is_banned:
+        return JsonResponse({'error': 'Access denied'}, status=403)
+        
+    solvers_data = []
+    
+    if event.is_team_mode:
+        from teams.models import TeamChallenge
+        solves = TeamChallenge.objects.filter(challenge=challenge).select_related('team').order_by('solved_at')
+        for solve in solves:
+            solvers_data.append({
+                'name': solve.team.name,
+                'time': solve.solved_at.isoformat() if solve.solved_at else None
+            })
+    else:
+        solves = UserChallenge.objects.filter(challenge=challenge, is_correct=True).select_related('user').order_by('submitted_at')
+        for solve in solves:
+            solvers_data.append({
+                'name': solve.user.username,
+                'time': solve.submitted_at.isoformat() if solve.submitted_at else None
+            })
+            
+    return JsonResponse({'solvers': solvers_data})

@@ -63,7 +63,7 @@ function BanConfirmModal({ user, isBanned, onConfirm, onCancel, loading }) {
 /* ══════════════════════════════════════════════════════════════ */
 function AdminEventParticipants() {
     const { id } = useParams();
-    const [data, setData] = useState({ event_name: '', participants: [], total_participants: 0 });
+    const [data, setData] = useState({ event_name: '', is_team_mode: false, participants: [], total_participants: 0 });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [actionLoading, setActionLoading] = useState(false);
@@ -141,15 +141,23 @@ function AdminEventParticipants() {
             </div>
 
             <div className="admin-table-container">
-                <h2 style={{ color: '#fff', marginBottom: '20px', fontFamily: 'Orbitron', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <FaUsers color="#00ff41" /> Enrolled Users ({data.total_participants})
-                </h2>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h2 style={{ color: '#fff', margin: 0, fontFamily: 'Orbitron', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <FaUsers color="#00ff41" /> Enrolled Users ({data.total_participants})
+                    </h2>
+                    {data.is_team_mode && (
+                        <Link to={`/administration/event/${id}/teams`} className="admin-btn-view" style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: 'rgba(0,191,255,0.1)', border: '1px solid rgba(0,191,255,0.4)', color: '#00bfff', borderRadius: '4px', textDecoration: 'none' }}>
+                            <FaUsers /> View Teams
+                        </Link>
+                    )}
+                </div>
                 <table className="admin-table">
                     <thead>
                         <tr>
                             <th>S.No.</th>
                             <th>Username</th>
                             <th>Email</th>
+                            {data.is_team_mode && <th>Team</th>}
                             <th>Status</th>
                             <th>Joined At</th>
                             <th>Action</th>
@@ -165,6 +173,9 @@ function AdminEventParticipants() {
                                     </span>
                                 </td>
                                 <td>{p.email}</td>
+                                {data.is_team_mode && (
+                                    <td style={{ color: '#00bfff', fontWeight: 500 }}>{p.team_name}</td>
+                                )}
                                 <td>
                                     {p.is_banned ?
                                         <span style={{ color: '#ff3b30', fontWeight: 'bold' }}>Banned</span> :

@@ -1,5 +1,6 @@
-from django.urls import path, register_converter
+from django.urls import path, include, register_converter
 from ctf.converters import HashIdConverter
+from ctf import views as ctf_views
 from accounts import api_views as auth_api
 from dashboard import api_views as dashboard_api
 from challenges import api_views as challenge_api
@@ -8,6 +9,9 @@ from administration import api_views as admin_api
 register_converter(HashIdConverter, 'hashid')
 
 urlpatterns = [
+    # CSRF
+    path('csrf/', ctf_views.csrf_token_view, name='api_csrf'),
+
     # Auth
     path('auth/login/', auth_api.login_api, name='api_login'),
     path('auth/register/', auth_api.register_api, name='api_register'),
@@ -31,6 +35,7 @@ urlpatterns = [
     path('event/<hashid:event_id>/announcements/', challenge_api.event_announcements_api, name='api_event_announcements'),
     path('event/<hashid:event_id>/writeups/', challenge_api.event_writeups_api, name='api_event_writeups'),
     path('challenge/<hashid:challenge_id>/submit/', challenge_api.submit_flag_api, name='api_challenge_submit'),
+    path('challenge/<hashid:challenge_id>/solvers/', challenge_api.challenge_solvers_api, name='api_challenge_solvers'),
     path('hint/<hashid:hint_id>/unlock/', challenge_api.unlock_hint_api, name='api_unlock_hint'),
 
     # Admin Dashboard
@@ -50,9 +55,13 @@ urlpatterns = [
     path('admin/event/<hashid:event_id>/rules/', admin_api.admin_update_event_rules_api, name='api_admin_update_event_rules'),
     path('admin/event/<hashid:event_id>/control/', admin_api.admin_event_control_api, name='api_admin_event_control'),
     path('admin/event/<hashid:event_id>/participants/', admin_api.admin_event_participants_api, name='api_admin_event_participants'),
+    path('admin/event/<hashid:event_id>/teams/', admin_api.admin_event_teams_api, name='api_admin_event_teams'),
     path('admin/event/<hashid:event_id>/participant/<hashid:user_id>/ban/', admin_api.admin_toggle_ban_participant_api, name='api_admin_toggle_ban_participant'),
+    path('admin/event/<hashid:event_id>/team/<hashid:team_id>/ban/', admin_api.admin_toggle_ban_team_api, name='api_admin_toggle_ban_team'),
+    path('admin/event/<hashid:event_id>/team/<hashid:team_id>/delete/', admin_api.admin_delete_team_api, name='api_admin_delete_team'),
     path('admin/event/<hashid:event_id>/leaderboard/', admin_api.admin_event_leaderboard_api, name='api_admin_event_leaderboard'),
     path('admin/event/<hashid:event_id>/leaderboard/<hashid:user_id>/submissions/', admin_api.admin_user_event_submissions_api, name='api_admin_user_event_submissions'),
+    path('admin/event/<hashid:event_id>/team/<hashid:team_id>/submissions/', admin_api.admin_team_submissions_api, name='api_admin_team_submissions'),
     path('admin/event/<hashid:event_id>/user/<hashid:user_id>/writeups/', admin_api.admin_user_writeups_api, name='api_admin_user_writeups'),
     path('admin/event/<hashid:event_id>/submissions/', admin_api.admin_event_submissions_api, name='api_admin_event_submissions'),
     path('admin/event/<hashid:event_id>/challenge/new/', admin_api.admin_create_challenge_api, name='api_admin_create_challenge'),
@@ -68,4 +77,7 @@ urlpatterns = [
     path('admin/event/<hashid:event_id>/export/', admin_api.admin_export_event_data_api, name='api_admin_export_event_data'),
     path('admin/event/<hashid:event_id>/test-challenges/', admin_api.admin_test_challenges_list_api, name='api_admin_test_challenges'),
     path('admin/challenge/<hashid:challenge_id>/test-flag/', admin_api.admin_test_challenge_flag_api, name='api_admin_test_challenge_flag'),
+
+    # Teams
+    path('teams/', include('teams.urls')),
 ]

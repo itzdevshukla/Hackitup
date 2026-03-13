@@ -86,6 +86,7 @@ export default function EventLeaderboard() {
     const [eventName, setEventName] = useState('');
     const [eventTotalPoints, setEventTotalPoints] = useState(0);
     const [eventTotalChallenges, setEventTotalChallenges] = useState(0);
+    const [isTeamMode, setIsTeamMode] = useState(false);
     const [loading, setLoading] = useState(true);
     const [lastUpdated, setLastUpdated] = useState(null);
     const [fullscreen, setFullscreen] = useState(false);
@@ -102,6 +103,7 @@ export default function EventLeaderboard() {
                 setEventName(json.event || '');
                 setEventTotalPoints(json.event_total_points || 0);
                 setEventTotalChallenges(json.event_total_challenges || 0);
+                setIsTeamMode(json.is_team_mode || false);
                 setLastUpdated(new Date());
             }
         } catch { }
@@ -129,7 +131,9 @@ export default function EventLeaderboard() {
         return () => document.removeEventListener('fullscreenchange', onFsChange);
     }, []);
 
-    const me = board.find(u => u.is_me);
+    const me = isTeamMode
+        ? board.find(t => t.is_my_team)
+        : board.find(u => u.is_me);
 
     return (
         <div ref={containerRef} style={{ position: 'relative', minHeight: '100vh', zIndex: 1, background: fullscreen ? '#000' : 'transparent' }}>
@@ -150,7 +154,7 @@ export default function EventLeaderboard() {
                         {/* ── HEADER ── */}
                         <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                             <div>
-                                <div style={{ fontSize: '0.65rem', letterSpacing: '4px', color: '#9ACD32', fontFamily: 'Orbitron, sans-serif', textTransform: 'uppercase', marginBottom: '6px', opacity: 0.7 }}>CTF Ranking · Classic Mode</div>
+                                <div style={{ fontSize: '0.65rem', letterSpacing: '4px', color: '#9ACD32', fontFamily: 'Orbitron, sans-serif', textTransform: 'uppercase', marginBottom: '6px', opacity: 0.7 }}>CTF Ranking · {isTeamMode ? 'Team Mode' : 'Classic Mode'}</div>
                                 <h1 style={{ margin: 0, fontSize: 'clamp(1.3rem, 3vw, 2rem)', fontWeight: 900, color: '#fff', fontFamily: 'Orbitron, sans-serif', letterSpacing: '2px', textShadow: '0 0 30px rgba(154,205,50,0.4)' }}>
                                     {eventName.toUpperCase()}
                                 </h1>
@@ -182,8 +186,9 @@ export default function EventLeaderboard() {
                         {/* ── Your position banner ── */}
                         {me && me.rank > 10 && (
                             <div style={{ background: 'rgba(154,205,50,0.06)', border: '1px solid rgba(154,205,50,0.2)', borderRadius: '10px', padding: '10px 18px', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '14px', backdropFilter: 'blur(10px)', flexWrap: 'wrap' }}>
-                                <span style={{ color: '#9ACD32', fontWeight: 700, fontSize: '0.78rem' }}>📍 Your Position</span>
+                                <span style={{ color: '#9ACD32', fontWeight: 700, fontSize: '0.78rem' }}>📍 {isTeamMode ? 'Team Position' : 'Your Position'}</span>
                                 <span style={{ color: '#fff', fontWeight: 900, fontFamily: 'Orbitron', fontSize: '0.95rem' }}>#{me.rank}</span>
+                                {isTeamMode && <span style={{ color: '#e8ffe8', fontWeight: 600, fontSize: '0.85rem' }}>{me.name}</span>}
                                 <span style={{ color: '#666', fontSize: '0.78rem' }}>{me.points} pts · {me.flags} flags</span>
                                 <span style={{ marginLeft: 'auto', color: '#555', fontSize: '0.72rem' }}>{formatTime(me.last_solve_time)}</span>
                             </div>
@@ -196,7 +201,7 @@ export default function EventLeaderboard() {
 
                                 {/* col headers */}
                                 <div style={{ display: 'flex', alignItems: 'center', padding: '14px 28px', borderBottom: '1px solid rgba(154,205,50,0.1)', background: 'rgba(154,205,50,0.05)' }}>
-                                    {['#', 'Player', 'Last Submit', 'Flags', 'Score'].map((h, i) => (
+                                    {['#', isTeamMode ? 'Team Name' : 'Player', 'Last Submit', 'Flags', 'Score'].map((h, i) => (
                                         <div key={i} style={{ flex: i === 1 ? 3 : i === 2 ? 3 : 1, fontSize: '0.72rem', color: 'rgba(154,205,50,0.5)', textTransform: 'uppercase', letterSpacing: '2.5px', fontWeight: 700, textAlign: i === 0 ? 'center' : i >= 3 ? 'center' : 'left' }}>{h}</div>
                                     ))}
                                 </div>
@@ -208,7 +213,7 @@ export default function EventLeaderboard() {
                                         const col = isTop3 ? RANK_COL[idx] : null;
 
                                         return (
-                                            <motion.div key={player.id}
+                                            <motion.div key={player.id || player.name || player.username || idx}
                                                 initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
                                                 transition={{ delay: idx * 0.03 }}
                                                 style={{
@@ -220,7 +225,7 @@ export default function EventLeaderboard() {
                                                         ? 'linear-gradient(90deg, rgba(154,205,50,0.15) 0%, rgba(154,205,50,0.05) 50%, transparent 100%)'
                                                         : isTop3
                                                             ? `linear-gradient(90deg, ${col}10 0%, transparent 60%)`
-                                                            : player.is_me ? 'rgba(154,205,50,0.04)' : 'transparent',
+                                                            : (player.is_me || player.is_my_team) ? 'rgba(154,205,50,0.04)' : 'transparent',
                                                     gap: '0',
                                                     transition: 'background 0.2s',
                                                 }}>
@@ -237,9 +242,9 @@ export default function EventLeaderboard() {
 
                                                 {/* Name only — no avatar icon */}
                                                 <div style={{ flex: 3, display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: col || (player.is_me ? '#9ACD32' : '#e8ffe8'), fontWeight: isTop3 || player.is_me ? 800 : 500, fontSize: isFirst ? '1.15rem' : isTop3 ? '1rem' : '0.95rem', textShadow: col ? `0 0 16px ${col}77` : isFirst ? '0 0 12px rgba(154,205,50,0.3)' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: isFirst ? '0.5px' : '0' }}>
-                                                        {player.username}
-                                                        {player.is_me && <span style={{ fontSize: '0.6rem', color: '#9ACD32', background: 'rgba(154,205,50,0.1)', padding: '1px 6px', borderRadius: '10px', border: '1px solid rgba(154,205,50,0.25)', fontWeight: 600, flexShrink: 0 }}>you</span>}
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: col || (player.is_me || player.is_my_team ? '#9ACD32' : '#e8ffe8'), fontWeight: isTop3 || player.is_me || player.is_my_team ? 800 : 500, fontSize: isFirst ? '1.15rem' : isTop3 ? '1rem' : '0.95rem', textShadow: col ? `0 0 16px ${col}77` : isFirst ? '0 0 12px rgba(154,205,50,0.3)' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: isFirst ? '0.5px' : '0' }}>
+                                                        {isTeamMode ? player.name : player.username}
+                                                        {(player.is_me || player.is_my_team) && <span style={{ fontSize: '0.6rem', color: '#9ACD32', background: 'rgba(154,205,50,0.1)', padding: '1px 6px', borderRadius: '10px', border: '1px solid rgba(154,205,50,0.25)', fontWeight: 600, flexShrink: 0 }}>{isTeamMode ? 'your team' : 'you'}</span>}
                                                     </div>
                                                 </div>
 
@@ -254,7 +259,7 @@ export default function EventLeaderboard() {
                                                 </div>
 
                                                 {/* Score */}
-                                                <div style={{ flex: 1, textAlign: 'center', fontWeight: 900, fontSize: isFirst ? '1.35rem' : isTop3 ? '1.1rem' : '1rem', fontFamily: 'Orbitron', color: col || (player.is_me ? '#9ACD32' : '#9acc9a'), letterSpacing: '1px', textShadow: col ? `0 0 20px ${col}99` : isFirst ? '0 0 16px rgba(154,205,50,0.5)' : 'none' }}>
+                                                <div style={{ flex: 1, textAlign: 'center', fontWeight: 900, fontSize: isFirst ? '1.35rem' : isTop3 ? '1.1rem' : '1rem', fontFamily: 'Orbitron', color: col || (player.is_me || player.is_my_team ? '#9ACD32' : '#9acc9a'), letterSpacing: '1px', textShadow: col ? `0 0 20px ${col}99` : isFirst ? '0 0 16px rgba(154,205,50,0.5)' : 'none' }}>
                                                     {player.points}
                                                 </div>
                                             </motion.div>

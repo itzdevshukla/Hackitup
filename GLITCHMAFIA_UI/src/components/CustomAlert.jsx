@@ -1,10 +1,11 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import './CustomAlert.css'; // We'll add some specific CSS for the modal
 
 function CustomAlert({ isOpen, title, message, confirmText, onConfirm, onCancel, type = 'alert' }) {
     if (!isOpen) return null;
 
-    return (
+    const alertContent = (
         <div className="custom-alert-overlay">
             <div className={`custom-alert-box ${type === 'danger' ? 'danger' : 'info'}`}>
                 <h3 className="custom-alert-title">{title}</h3>
@@ -26,6 +27,8 @@ function CustomAlert({ isOpen, title, message, confirmText, onConfirm, onCancel,
             </div>
         </div>
     );
+
+    return createPortal(alertContent, document.body);
 }
 
 export default CustomAlert;

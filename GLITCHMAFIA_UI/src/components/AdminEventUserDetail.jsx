@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { FaArrowLeft, FaCheck, FaTimes, FaTrophy, FaStar, FaUser, FaCrosshairs, FaExchangeAlt, FaSearch, FaBullseye, FaBan, FaDownload, FaPencilAlt, FaEye, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import CustomAlert from './CustomAlert';
 
 function AdminEventUserDetail() {
     const { id, userId } = useParams();
@@ -16,6 +17,9 @@ function AdminEventUserDetail() {
     const [submissions, setSubmissions] = useState([]);
     const [filter, setFilter] = useState('all');
     const [leaderboard, setLeaderboard] = useState([]);
+
+    const [alertOpen, setAlertOpen] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({});
 
     const [compareQuery, setCompareQuery] = useState('');
     const [compareUser, setCompareUser] = useState(null);
@@ -63,6 +67,7 @@ function AdminEventUserDetail() {
                 setSubmissions(subData.submissions || []);
                 setUserHints(subData.hints_taken || []);
                 setLeaderboard(lbData.leaderboard || []);
+                setIsBanned(subData.is_banned || false);
                 const entry = (lbData.leaderboard || []).find(e => String(e.user_id) === String(userId));
                 if (entry) { setRank(entry.rank); setPoints(entry.total_points); setSolves(entry.solves); }
             })
@@ -300,34 +305,25 @@ function AdminEventUserDetail() {
             }}>
                 <button className="cmp-close" onClick={() => setHintsModal(false)} style={{ color: '#ff9500', opacity: 0.8 }}><FaTimes /></button>
                 <h2 className="cmp-title" style={{ color: '#fff', borderBottom: '1px solid rgba(255,149,0,0.2)', paddingBottom: '20px', marginBottom: '25px', display: 'flex', alignItems: 'center', fontFamily: "'Orbitron', sans-serif" }}>
-                    <FaEye style={{ marginRight: '15px', color: '#ff9500', filter: 'drop-shadow(0 0 5px rgba(255,149,0,0.5))' }} />
+                    <FaStar style={{ marginRight: '15px', color: '#ff9500', filter: 'drop-shadow(0 0 5px rgba(255,149,0,0.5))' }} />
                     <span style={{ color: '#ff9500', marginRight: '8px' }}>{username}'s</span> Hints
                 </h2>
 
                 {userHints.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#555', background: 'rgba(0,0,0,0.4)', borderRadius: '8px', border: '1px dashed #333' }}>
-                        <FaEye style={{ fontSize: '3rem', marginBottom: '15px', opacity: 0.2 }} />
+                    <div style={{ textAlign: 'center', padding: '3rem 2rem', color: '#555', background: 'rgba(0,0,0,0.4)', borderRadius: '8px', border: '1px dashed #333' }}>
+                        <FaStar style={{ fontSize: '3rem', marginBottom: '15px', opacity: 0.2 }} />
                         <div style={{ fontSize: '1.1rem', fontFamily: "'Orbitron', sans-serif" }}>NO HINTS TAKEN</div>
-                        <div style={{ fontSize: '0.9rem', marginTop: '10px' }}>This user hasn't unlocked any hints.</div>
+                        <div style={{ fontSize: '0.9rem', marginTop: '10px' }}>This user hasn't unlocked any hints yet.</div>
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxHeight: '60vh', overflowY: 'auto', paddingRight: '10px' }}>
                         {userHints.map((h, i) => (
-                            <div key={i} style={{
-                                background: 'rgba(10,10,10,0.6)',
-                                border: '1px solid rgba(255,255,255,0.08)',
-                                borderRadius: '8px', overflow: 'hidden', padding: '15px 20px',
-                                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                            }}>
+                            <div key={i} style={{ background: 'rgba(10,10,10,0.6)', border: '1px solid rgba(255,149,0,0.15)', borderRadius: '8px', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
-                                    <h3 style={{ margin: '0 0 5px 0', color: '#ddd', fontSize: '1.1rem', fontFamily: "'Orbitron', sans-serif" }}>
-                                        {h.challenge_title}
-                                    </h3>
-                                    <div style={{ fontSize: '0.85rem', color: '#888' }}>
-                                        Unlocked at: <span style={{ color: '#bbb' }}>{h.unlocked_at}</span>
-                                    </div>
+                                    <div style={{ color: '#fff', fontSize: '1.05rem', marginBottom: '5px', fontFamily: "'Orbitron', sans-serif" }}>{h.challenge_title}</div>
+                                    <div style={{ color: '#777', fontSize: '0.85rem' }}>{h.unlocked_at}</div>
                                 </div>
-                                <div style={{ color: '#ff3b30', fontWeight: 'bold', fontSize: '1.2rem', fontFamily: "'Orbitron', sans-serif" }}>
+                                <div style={{ background: 'rgba(255,149,0,0.1)', color: '#ff9500', padding: '5px 12px', borderRadius: '15px', fontSize: '0.85rem', fontWeight: 'bold' }}>
                                     -{h.cost} pts
                                 </div>
                             </div>
@@ -341,6 +337,7 @@ function AdminEventUserDetail() {
 
     return (
         <>
+            <CustomAlert isOpen={alertOpen} {...alertConfig} />
             {compareModal}
             {writeupsPortal}
             {hintsPortal}
@@ -357,17 +354,34 @@ function AdminEventUserDetail() {
                 <button
                     className={`eud-ban-btn ${isBanned ? 'banned' : ''}`}
                     disabled={banLoading}
-                    onClick={async () => {
-                        setBanLoading(true);
-                        try {
-                            const res = await fetch(`/api/admin/event/${id}/participant/${userId}/ban/`, {
-                                method: 'POST',
-                                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                            });
-                            const data = await res.json();
-                            if (res.ok) setIsBanned(data.is_banned);
-                        } catch (e) { console.error(e); }
-                        finally { setBanLoading(false); }
+                    onClick={() => {
+                        const action = isBanned ? 'UNBAN' : 'BAN';
+                        setAlertConfig({
+                            title: 'Are you sure?',
+                            message: `Do you really want to ${action} ${username}?`,
+                            type: isBanned ? 'alert' : 'danger',
+                            confirmText: `Yes, ${action}!`,
+                            onCancel: () => setAlertOpen(false),
+                            onConfirm: async () => {
+                                setAlertOpen(false);
+                                setBanLoading(true);
+                                try {
+                                    const res = await fetch(`/api/admin/event/${id}/participant/${userId}/ban/`, {
+                                        method: 'POST',
+                                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                                    });
+                                    const data = await res.json();
+                                    if (res.ok) setIsBanned(data.is_banned);
+                                    else alert(data.error || 'Failed to toggle ban');
+                                } catch (e) {
+                                    console.error(e);
+                                    alert('Network error');
+                                } finally {
+                                    setBanLoading(false);
+                                }
+                            }
+                        });
+                        setAlertOpen(true);
                     }}
                 >
                     <FaBan /> {banLoading ? '...' : isBanned ? 'Unban' : 'Ban'}

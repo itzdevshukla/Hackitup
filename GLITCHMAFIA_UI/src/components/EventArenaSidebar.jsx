@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import {
     FaFlag, FaChevronDown, FaChevronRight, FaTrophy, FaBullhorn,
     FaPencilAlt, FaArrowLeft, FaBars, FaSignOutAlt, FaShieldAlt,
-    FaBug, FaLock, FaCode, FaDatabase
+    FaBug, FaLock, FaCode, FaDatabase, FaUsers
 } from 'react-icons/fa';
 import './UserSidebar.css';
 
@@ -27,6 +27,7 @@ function EventArenaSidebar({ isOpen, setIsOpen }) {
 
     const [categories, setCategories] = useState([]);
     const [eventName, setEventName] = useState('');
+    const [eventData, setEventData] = useState(null);
     const [challengesOpen, setChallengesOpen] = useState(true);
     const [leaderboardOpen, setLeaderboardOpen] = useState(false);
     const [activeCategory, setActiveCategory] = useState('All');
@@ -66,9 +67,14 @@ function EventArenaSidebar({ isOpen, setIsOpen }) {
     const fetchChallengeCategories = async () => {
         try {
             const res = await fetch(`/api/event/${id}/challenges/`);
+            const data = await res.json();
+
+            if (data.event) {
+                setEventName(data.event);
+                setEventData(data); // Storing entire event payload so we know if is_team_mode is true
+            }
+
             if (res.ok) {
-                const data = await res.json();
-                setEventName(data.event || '');
                 const unique = ['All', ...new Set((data.challenges || []).map(c => c.category))];
                 setCategories(unique);
             }
@@ -210,6 +216,19 @@ function EventArenaSidebar({ isOpen, setIsOpen }) {
                             <span>Announcements</span>
                         </NavLink>
                     </li>
+
+                    {/* ───── MY TEAM SECTION ───── */}
+                    {eventData?.is_team_mode && (
+                        <li style={{ marginTop: '4px' }}>
+                            <NavLink
+                                to={`/event/${id}/team`}
+                                style={({ isActive }) => navItemStyle(isActive)}
+                            >
+                                <span style={{ fontSize: '1.1rem' }}><FaUsers /></span>
+                                <span>My Team</span>
+                            </NavLink>
+                        </li>
+                    )}
 
                     {/* ───── WRITEUPS ───── */}
                     <li>

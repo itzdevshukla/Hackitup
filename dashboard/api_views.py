@@ -1,6 +1,7 @@
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
 from administration.models import Event
 from ctf.utils import encode_id
 
@@ -28,6 +29,7 @@ def dashboard_events_api(request):
     
     return JsonResponse({'events': events_data})
 
+@csrf_exempt
 @login_required
 @require_POST
 def join_event_api(request, event_id):
@@ -107,10 +109,13 @@ def event_details_api(request, event_id):
         'is_registered': is_registered,
         'is_registration_open': event.is_registration_open(),
         'rules': event.rules or '',
+        'is_team_mode': event.is_team_mode,
+        'max_team_size': event.max_team_size,
     }
     
     return JsonResponse(data)
 
+@csrf_exempt
 @login_required
 @require_POST
 def user_request_event_api(request):
@@ -134,6 +139,8 @@ def user_request_event_api(request):
             registration_start_time=parse_time(data.get('registrationStartTime')) if data.get('registrationStartTime') else None,
             registration_end_date=parse_date(data.get('registrationEndDate')) if data.get('registrationEndDate') else None,
             registration_end_time=parse_time(data.get('registrationEndTime')) if data.get('registrationEndTime') else None,
+            is_team_mode=str(data.get('isTeamMode')).lower() == 'true' if isinstance(data.get('isTeamMode'), str) else bool(data.get('isTeamMode')),
+            max_team_size=int(data.get('maxTeamSize') or 4),
             created_by=request.user,
             is_approved=False,
             is_rejected=False

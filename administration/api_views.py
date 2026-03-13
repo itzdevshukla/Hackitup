@@ -293,6 +293,8 @@ def admin_add_event_api(request):
                 registration_start_time=data.get('reg_start_time') or None,
                 registration_end_date=data.get('reg_end_date') or None,
                 registration_end_time=data.get('reg_end_time') or None,
+                is_team_mode=str(data.get('is_team_mode')).lower() == 'true' if isinstance(data.get('is_team_mode'), str) else bool(data.get('is_team_mode')),
+                max_team_size=int(data.get('max_team_size') or 4),
                 created_by=request.user,
                 is_approved=True 
             )
@@ -344,6 +346,11 @@ def admin_edit_event_api(request, event_id):
             if 'reg_start_time' in data: event.registration_start_time = data.get('reg_start_time') or None
             if 'reg_end_date' in data: event.registration_end_date = data.get('reg_end_date') or None
             if 'reg_end_time' in data: event.registration_end_time = data.get('reg_end_time') or None
+            if 'is_team_mode' in data: 
+                val = data.get('is_team_mode')
+                event.is_team_mode = str(val).lower() == 'true' if isinstance(val, str) else bool(val)
+            if 'max_team_size' in data: 
+                event.max_team_size = int(data.get('max_team_size') or 4)
             
             event.save()
             return JsonResponse({"message": "Event updated successfully"})
@@ -496,6 +503,8 @@ def admin_event_detail_api(request, event_id):
                 "reg_start_time": event.registration_start_time.strftime("%H:%M") if event.registration_start_time else None,
                 "reg_end_date": event.registration_end_date.strftime("%Y-%m-%d") if event.registration_end_date else None,
                 "reg_end_time": event.registration_end_time.strftime("%H:%M") if event.registration_end_time else None,
+                "is_team_mode": event.is_team_mode,
+                "max_team_size": event.max_team_size,
                 "created_at": event.created_at.strftime("%Y-%m-%d %H:%M:%S") if hasattr(event, 'created_at') else None
             },
             "stats": {
@@ -1025,6 +1034,56 @@ def admin_import_users_api(request):
 
 @csrf_exempt
 @login_required
+def admin_event_teams_api(request, event_id):
+    if not is_admin(request.user, event_id=event_id):
+        return JsonResponse({"error": "Forbidden"}, status=403)
+        
+    try:
+        event = Event.objects.get(id=event_id)
+        if not event.is_team_mode:
+            return JsonResponse({"error": "Event is not in Team Mode"}, status=400)
+            
+        from teams.models import Team
+        from dashboard.models import EventAccess
+        teams = Team.objects.filter(event=event).prefetch_related('members__user').order_by('-created_at')
+        
+        # We need to know which users are banned in this event
+        access_records = EventAccess.objects.filter(event=event)
+        banned_user_ids = set(access_records.filter(is_banned=True).values_list('user_id', flat=True))
+        
+        teams_data = []
+        for team in teams:
+            members = []
+            for tm in team.members.all():
+                members.append({
+                    "user_id": encode_id(tm.user.id),
+                    "username": tm.user.username,
+                    "is_captain": tm.user.id == team.captain_id,
+                    "is_banned": tm.user.id in banned_user_ids
+                })
+            
+            teams_data.append({
+                "team_id": encode_id(team.id),
+                "team_name": team.name,
+                "invite_code": team.invite_code,
+                "captain": team.captain.username,
+                "member_count": len(members),
+                "created_at": team.created_at.strftime("%Y-%m-%d %H:%M:%S") if team.created_at else None,
+                "members": members,
+                "is_banned": all(m['is_banned'] for m in members) if members else False
+            })
+            
+        return JsonResponse({
+            "event_name": event.event_name,
+            "teams": teams_data,
+            "total_teams": len(teams_data)
+        })
+    except Event.DoesNotExist:
+        return JsonResponse({"error": "Event not found"}, status=404)
+
+
+@csrf_exempt
+@login_required
 def admin_event_participants_api(request, event_id):
     if not is_admin(request.user, event_id=event_id):
         return JsonResponse({"error": "Forbidden"}, status=403)
@@ -1033,6 +1092,14 @@ def admin_event_participants_api(request, event_id):
         event = Event.objects.get(id=event_id)
         registrations = EventAccess.objects.filter(event=event).select_related('user').order_by('-granted_at')
         
+        user_to_team = {}
+        if event.is_team_mode:
+            from teams.models import Team
+            teams = Team.objects.filter(event=event).prefetch_related('members__user')
+            for team in teams:
+                for member in team.members.all():
+                    user_to_team[member.user.id] = team.name
+
         participants_data = []
         for reg in registrations:
             participants_data.append({
@@ -1041,11 +1108,13 @@ def admin_event_participants_api(request, event_id):
                 "email": reg.user.email,
                 "joined_at": reg.granted_at.strftime("%Y-%m-%d %H:%M:%S") if hasattr(reg, 'granted_at') and reg.granted_at else None,
                 "is_registered": reg.is_registered,
-                "is_banned": reg.is_banned
+                "is_banned": reg.is_banned,
+                "team_name": user_to_team.get(reg.user.id, "No Team") if event.is_team_mode else None
             })
             
         return JsonResponse({
             "event_name": event.event_name,
+            "is_team_mode": event.is_team_mode,
             "participants": participants_data,
             "total_participants": len(participants_data)
         })
@@ -1057,61 +1126,121 @@ def admin_event_participants_api(request, event_id):
 def admin_event_leaderboard_api(request, event_id):
     if not is_admin(request.user, event_id=event_id):
         return JsonResponse({"error": "Forbidden"}, status=403)
-        
+
     try:
         event = Event.objects.get(id=event_id)
-        
-        leaderboard = list(
-            UserChallenge.objects
-            .filter(
-                challenge__event=event,
-                is_correct=True,
-                user__eventaccess__event=event,
-                user__eventaccess__is_banned=False
-            )
-            .values("user__id", "user__username")
-            .annotate(
-                total_points=Sum("challenge__points"),
-                solves=Count("id"),
-                first_solve=Min("submitted_at"),
-                last_solve=Max("submitted_at")
-            )
-        )
-        
-        # Get hint deductions
-        user_hints = (
-            UserHint.objects
-            .filter(hint__challenge__event=event)
-            .values("user__id")
-            .annotate(total_deduction=Sum("hint__cost"))
-        )
-        hint_deductions = {item["user__id"]: item["total_deduction"] for item in user_hints}
-
-        # Apply deductions
-        for entry in leaderboard:
-            deduction = hint_deductions.get(entry["user__id"], 0)
-            entry["total_points"] = max(0, entry["total_points"] - deduction)
-            
-        # Re-sort manually in Python (descending points, ascending time)
-        leaderboard.sort(key=lambda x: (-x["total_points"], x["last_solve"]))
-        
-        leaderboard_data = []
-        for rank, entry in enumerate(leaderboard, start=1):
-            leaderboard_data.append({
-                "rank": rank,
-                "user_id": encode_id(entry["user__id"]),
-                "username": entry["user__username"],
-                "total_points": entry["total_points"],
-                "solves": entry["solves"],
-                "last_solve": entry["last_solve"].strftime("%Y-%m-%d %H:%M:%S") if entry["last_solve"] else None
-            })
-            
-        return JsonResponse({
-            "event_name": event.event_name,
-            "leaderboard": leaderboard_data
-        })
     except Event.DoesNotExist:
         return JsonResponse({"error": "Event not found"}, status=404)
+
+    # ── Always read is_team_mode from the DB — never trust client input ──────
+    if event.is_team_mode:
+        from teams.models import Team, TeamChallenge, TeamMember
+
+        teams = Team.objects.filter(event=event).prefetch_related(
+            'members__user', 'solves__challenge'
+        )
+
+        team_list = []
+        for team in teams:
+            solves = team.solves.all()
+            total_points = sum(s.challenge.points for s in solves)
+            last_solve_obj = solves.order_by('-solved_at').first()
+            last_solve_str = last_solve_obj.solved_at.strftime("%Y-%m-%d %H:%M:%S") if last_solve_obj else None
+
+            members = []
+            for m in team.members.all():
+                # Check if this member is banned
+                try:
+                    from dashboard.models import EventAccess
+                    access = EventAccess.objects.get(event=event, user=m.user)
+                    is_banned = access.is_banned
+                except:
+                    is_banned = False
+
+                members.append({
+                    "user_id": encode_id(m.user.id),
+                    "username": m.user.username,
+                    "is_captain": m.user.id == team.captain_id,
+                    "is_banned": is_banned,
+                })
+
+            team_list.append({
+                "team_id": encode_id(team.id),
+                "team_name": team.name,
+                "captain": team.captain.username,
+                "member_count": len(members),
+                "members": members,
+                "total_points": total_points,
+                "solves": solves.count(),
+                "last_solve": last_solve_str,
+                "_last_solve_raw": last_solve_obj.solved_at if last_solve_obj else None,
+            })
+
+        # Sort: points desc, last_solve asc (teams with no solves go last)
+        from django.utils import timezone as tz
+        team_list.sort(key=lambda t: (
+            -t["total_points"],
+            t["_last_solve_raw"] if t["_last_solve_raw"] else tz.now()
+        ))
+
+        for rank, team in enumerate(team_list, start=1):
+            team["rank"] = rank
+            del team["_last_solve_raw"]  # internal field, don't expose
+
+        return JsonResponse({
+            "event_name": event.event_name,
+            "is_team_mode": True,
+            "leaderboard": team_list,
+        })
+
+    # ── Individual mode (unchanged) ──────────────────────────────────────────
+    leaderboard = list(
+        UserChallenge.objects
+        .filter(
+            challenge__event=event,
+            is_correct=True,
+            user__eventaccess__event=event,
+            user__eventaccess__is_banned=False
+        )
+        .values("user__id", "user__username")
+        .annotate(
+            total_points=Sum("challenge__points"),
+            solves=Count("id"),
+            first_solve=Min("submitted_at"),
+            last_solve=Max("submitted_at")
+        )
+    )
+
+    user_hints = (
+        UserHint.objects
+        .filter(hint__challenge__event=event)
+        .values("user__id")
+        .annotate(total_deduction=Sum("hint__cost"))
+    )
+    hint_deductions = {item["user__id"]: item["total_deduction"] for item in user_hints}
+
+    for entry in leaderboard:
+        deduction = hint_deductions.get(entry["user__id"], 0)
+        entry["total_points"] = max(0, entry["total_points"] - deduction)
+
+    leaderboard.sort(key=lambda x: (-x["total_points"], x["last_solve"]))
+
+    leaderboard_data = []
+    for rank, entry in enumerate(leaderboard, start=1):
+        leaderboard_data.append({
+            "rank": rank,
+            "user_id": encode_id(entry["user__id"]),
+            "username": entry["user__username"],
+            "total_points": entry["total_points"],
+            "solves": entry["solves"],
+            "last_solve": entry["last_solve"].strftime("%Y-%m-%d %H:%M:%S") if entry["last_solve"] else None
+        })
+
+    return JsonResponse({
+        "event_name": event.event_name,
+        "is_team_mode": False,
+        "leaderboard": leaderboard_data,
+    })
 
 @csrf_exempt
 @login_required
@@ -1127,6 +1256,18 @@ def admin_event_submissions_api(request, event_id):
         if not can_see_flag:
             can_see_flag = EventRole.objects.filter(event=event, user=request.user, role='organizer').exists()
         
+        # User to Team Mapping if team mode
+        user_to_team = {}
+        if event.is_team_mode:
+            from teams.models import Team
+            teams = Team.objects.filter(event=event).prefetch_related('members__user')
+            for t in teams:
+                for member in t.members.all():
+                    user_to_team[member.user.id] = {
+                        "name": t.name,
+                        "id": encode_id(t.id)
+                    }
+
         submissions = (
             UserChallenge.objects
             .filter(challenge__event=event)
@@ -1137,7 +1278,8 @@ def admin_event_submissions_api(request, event_id):
         submissions_data = []
         for s in submissions:
             flag_val = s.submitted_flag if (can_see_flag or not s.is_correct) else "CORRECT"
-            submissions_data.append({
+            
+            sub_dict = {
                 "id": encode_id(s.id),
                 "user_id": encode_id(s.user.id),
                 "username": s.user.username,
@@ -1146,10 +1288,18 @@ def admin_event_submissions_api(request, event_id):
                 "flag": flag_val,
                 "is_correct": s.is_correct,
                 "submitted_at": s.submitted_at.strftime("%Y-%m-%d %H:%M:%S") if s.submitted_at else None
-            })
+            }
+            
+            if event.is_team_mode:
+                team_info = user_to_team.get(s.user.id, {"name": "No Team", "id": None})
+                sub_dict["team_name"] = team_info["name"]
+                sub_dict["team_id"] = team_info["id"]
+
+            submissions_data.append(sub_dict)
             
         return JsonResponse({
             "event_name": event.event_name,
+            "is_team_mode": event.is_team_mode,
             "submissions": submissions_data
         })
     except Event.DoesNotExist:
@@ -1169,6 +1319,13 @@ def admin_user_event_submissions_api(request, event_id, user_id):
         can_see_flag = request.user.is_superuser or (event.created_by == request.user)
         if not can_see_flag:
             can_see_flag = EventRole.objects.filter(event=event, user=request.user, role='organizer').exists()
+
+        try:
+            from dashboard.models import EventAccess
+            access = EventAccess.objects.get(event=event, user=user)
+            is_banned = access.is_banned
+        except:
+            is_banned = False
 
         submissions = (
             UserChallenge.objects
@@ -1206,11 +1363,167 @@ def admin_user_event_submissions_api(request, event_id, user_id):
         return JsonResponse({
             "event_name": event.event_name,
             "username": user.username,
+            "is_banned": is_banned,
             "submissions": submissions_data,
             "hints_taken": hints_data
         })
     except (Event.DoesNotExist, User.DoesNotExist):
         return JsonResponse({"error": "Event or User not found"}, status=404)
+
+
+@csrf_exempt
+@login_required
+def admin_team_submissions_api(request, event_id, team_id):
+    """
+    Returns all UserChallenge submissions made by any member of a given team.
+    Server-side guard: event.is_team_mode is read from DB — no client flag trusted.
+    """
+    if not is_admin(request.user, event_id=event_id):
+        return JsonResponse({"error": "Forbidden"}, status=403)
+
+    try:
+        event = Event.objects.get(id=event_id)
+    except Event.DoesNotExist:
+        return JsonResponse({"error": "Event not found"}, status=404)
+
+    # Server-side guard — only valid for team-mode events
+    if not event.is_team_mode:
+        return JsonResponse({"error": "This event is not in team mode"}, status=400)
+
+    from teams.models import Team, TeamMember
+    try:
+        team = Team.objects.get(id=team_id, event=event)
+    except Team.DoesNotExist:
+        return JsonResponse({"error": "Team not found"}, status=404)
+
+    # Flag visibility — same rules as individual submissions
+    can_see_flag = request.user.is_superuser or (event.created_by == request.user)
+    if not can_see_flag:
+        can_see_flag = EventRole.objects.filter(event=event, user=request.user, role='organizer').exists()
+
+    # Collect all member user IDs for this team
+    member_user_ids = TeamMember.objects.filter(team=team).values_list('user_id', flat=True)
+
+    submissions = (
+        UserChallenge.objects
+        .filter(challenge__event=event, user_id__in=member_user_ids)
+        .select_related("user", "challenge")
+        .order_by("-submitted_at")
+    )
+
+    submissions_data = []
+    for s in submissions:
+        flag_val = s.submitted_flag if (can_see_flag or not s.is_correct) else "CORRECT"
+        submissions_data.append({
+            "id": encode_id(s.id),
+            "username": s.user.username,
+            "user_id": encode_id(s.user.id),
+            "challenge_title": s.challenge.title,
+            "flag": flag_val,
+            "is_correct": s.is_correct,
+            "submitted_at": s.submitted_at.strftime("%Y-%m-%d %H:%M:%S") if s.submitted_at else None,
+        })
+
+    return JsonResponse({
+        "event_name": event.event_name,
+        "team_name": team.name,
+        "submissions": submissions_data,
+    })
+
+
+@csrf_exempt
+@login_required
+def admin_toggle_ban_team_api(request, event_id, team_id):
+    """
+    Bans or unbans all members of a specific team.
+    If any member is unbanned, it will ban all members. 
+    If all members are banned, it will unban all members.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Unauthorized"}, status=401)
+
+    if request.method == 'POST':
+        try:
+            event = Event.objects.get(id=event_id)
+
+            # Allow: superuser, staff, organizer, or event_admin for this event
+            is_super = request.user.is_superuser or request.user.is_staff
+            has_role = EventRole.objects.filter(
+                event=event,
+                user=request.user,
+                role__in=['organizer', 'admin']
+            ).exists()
+
+            if not is_super and not has_role:
+                return JsonResponse({"error": "Forbidden — insufficient permissions to ban teams"}, status=403)
+
+            from teams.models import Team
+            team = Team.objects.get(id=team_id, event=event)
+
+            from dashboard.models import EventAccess
+            member_users = team.members.values_list('user', flat=True)
+            access_records = EventAccess.objects.filter(event=event, user__in=member_users)
+
+            # Determine target state: if ANY member is not banned, we BAN all of them.
+            # Only if ALL are already banned, we UNBAN them.
+            target_ban_state = any(not access.is_banned for access in access_records)
+
+            # Update all member accesses
+            access_records.update(is_banned=target_ban_state)
+
+            return JsonResponse({
+                "message": f"Team {'banned' if target_ban_state else 'unbanned'} successfully",
+                "is_banned": target_ban_state
+            })
+        except (Event.DoesNotExist, Team.DoesNotExist):
+            return JsonResponse({"error": "Event or Team record not found"}, status=404)
+
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+
+@csrf_exempt
+@login_required
+def admin_delete_team_api(request, event_id, team_id):
+    """
+    Deletes a specified team and removes the members from the EventAccess 
+    so they can join other teams or the event again.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Unauthorized"}, status=401)
+
+    if request.method == 'DELETE':
+        try:
+            event = Event.objects.get(id=event_id)
+
+            # Allow: superuser, staff, organizer, or event_admin
+            is_super = request.user.is_superuser or request.user.is_staff
+            has_role = EventRole.objects.filter(
+                event=event,
+                user=request.user,
+                role__in=['organizer', 'admin']
+            ).exists()
+
+            if not is_super and not has_role:
+                return JsonResponse({"error": "Forbidden — insufficient permissions"}, status=403)
+
+            from teams.models import Team
+            team = Team.objects.get(id=team_id, event=event)
+            
+            # Remove event access for all team members so they can join/create new teams
+            from dashboard.models import EventAccess
+            member_users = team.members.values_list('user', flat=True)
+            EventAccess.objects.filter(event=event, user__in=member_users).delete()
+
+            team_name = team.name
+            team.delete()
+
+            return JsonResponse({"message": f"Team '{team_name}' and its members' event access deleted successfully"})
+
+        except (Event.DoesNotExist, Team.DoesNotExist):
+            return JsonResponse({"error": "Event or Team not found"}, status=404)
+
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
 
 @csrf_exempt
 @login_required

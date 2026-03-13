@@ -22,8 +22,8 @@ function EventWriteUps() {
         setLoading(true);
         try {
             const [chalRes, wuRes] = await Promise.all([
-                fetch(`/api/event/${id}/challenges/`),
-                fetch(`/api/event/${id}/writeups/`)
+                fetch(`/api/event/${id}/challenges/`, { credentials: 'include' }),
+                fetch(`/api/event/${id}/writeups/`, { credentials: 'include' })
             ]);
 
             if (chalRes.ok) {
@@ -53,9 +53,10 @@ function EventWriteUps() {
         try {
             const res = await fetch(`/api/event/${id}/writeups/`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1]
+                    'X-CSRFToken': document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || ''
                 },
                 body: JSON.stringify({ challenge_id: challengeId, content: writeups[challengeId] || '' })
             });

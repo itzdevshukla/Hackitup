@@ -20,16 +20,19 @@ function AdminAddEvent() {
         reg_start_date: '',
         reg_start_time: '',
         reg_end_date: '',
-        reg_end_time: ''
+        reg_end_time: '',
+        is_team_mode: false,
+        max_team_size: 4
     });
 
     const [alertOpen, setAlertOpen] = useState(false);
     const [alertConfig, setAlertConfig] = useState({});
 
     const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
         setFormData({
             ...formData,
-            [e.target.name]: e.target.value
+            [name]: type === 'checkbox' ? checked : value
         });
     };
 
@@ -130,6 +133,24 @@ function AdminAddEvent() {
                                 <label style={{ color: '#aaa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Max Participants *</label>
                                 <input type="number" className="admin-search-input" name="max_participants" value={formData.max_participants} onChange={handleChange} min="1" max="9999" style={{ padding: '15px' }} required />
                             </div>
+                        </div>
+
+                        {/* Team Settings */}
+                        <div style={{ display: 'flex', gap: '20px', background: 'rgba(0, 255, 65, 0.05)', border: '1px solid rgba(0, 255, 65, 0.2)', padding: '20px', borderRadius: '10px' }}>
+                            <div className="admin-form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                <label style={{ color: '#aaa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Event Mode *</label>
+                                <select className="admin-form-select" name="is_team_mode" value={formData.is_team_mode} onChange={(e) => setFormData({ ...formData, is_team_mode: e.target.value === 'true' })} style={{ padding: '15px', height: 'auto' }} required>
+                                    <option value="false">Solo</option>
+                                    <option value="true">Team Based</option>
+                                </select>
+                            </div>
+
+                            {formData.is_team_mode && (
+                                <div className="admin-form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                    <label style={{ color: '#aaa', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Max Team Size *</label>
+                                    <input type="number" className="admin-search-input" name="max_team_size" value={formData.max_team_size} onChange={handleChange} min="2" max="100" style={{ padding: '15px' }} required={formData.is_team_mode} />
+                                </div>
+                            )}
                         </div>
                     </div>
 

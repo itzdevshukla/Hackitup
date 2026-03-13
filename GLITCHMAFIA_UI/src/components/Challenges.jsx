@@ -34,9 +34,6 @@ const Challenges = () => {
     const [eventName, setEventName] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [selectedChallenge, setSelectedChallenge] = useState(null);
-    const [flagInput, setFlagInput] = useState('');
-    const [submitStatus, setSubmitStatus] = useState(null);
     const [filter, setFilter] = useState(categoryParam);
     const [isBanned, setIsBanned] = useState(false);
     const [eventStatus, setEventStatus] = useState('live');
@@ -90,10 +87,19 @@ const Challenges = () => {
             if (res.status === 403) {
                 const d = await res.json();
                 setError(d.error || 'Access Denied');
+                if (d.event) setEventName(d.event);
+                setEventStatus('pending');
                 setLoading(false);
                 return;
             }
             const data = await res.json();
+
+            // Redirect to Team page if they require a team
+            if (data.needs_team) {
+                navigate(`/event/${id}/team`, { replace: true });
+                return;
+            }
+
             if (data.challenges) {
                 setChallenges(data.challenges);
                 setEventName(data.event);
@@ -107,49 +113,9 @@ const Challenges = () => {
         }
     };
 
-    const submitFlag = async (e) => {
-        e.preventDefault();
-        if (!selectedChallenge) return;
-        try {
-            const res = await fetch(`/api/challenge/${selectedChallenge.id}/submit/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1]
-                },
-                body: JSON.stringify({ flag: flagInput })
-            });
-            const data = await res.json();
-            if (data.success) {
-                setSubmitStatus('success');
-                fetchChallenges();
-                setTimeout(() => { setSelectedChallenge(null); setSubmitStatus(null); setFlagInput(''); }, 1500);
-            } else { setSubmitStatus('error'); }
-        } catch { setSubmitStatus('error'); }
+    const openChallenge = (ch) => {
+        navigate(`/event/${id}/challenges/${ch.id}`);
     };
-
-    const unlockHint = async (hintId, cost) => {
-        if (!window.confirm(`Are you sure you want to unlock this hint for ${cost} points?`)) return;
-        try {
-            const res = await fetch(`/api/hint/${hintId}/unlock/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1]
-                }
-            });
-            const data = await res.json();
-            if (data.success) {
-                setSelectedChallenge(prev => ({
-                    ...prev,
-                    hints: prev.hints.map(h => h.id === hintId ? { ...h, is_unlocked: true, content: data.hint_content || h.content } : h)
-                }));
-                fetchChallenges();
-            } else { alert(data.error || 'Failed to unlock hint.'); }
-        } catch { }
-    };
-
-    const openChallenge = (ch) => { setSelectedChallenge(ch); setSubmitStatus(null); setFlagInput(''); };
 
     const categories = ['All', ...new Set(challenges.map(c => c.category))];
     const filtered = challenges.filter(c => filter === 'All' || c.category === filter);
@@ -169,10 +135,14 @@ const Challenges = () => {
 
     if (error) return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', textAlign: 'center', padding: '2rem', gap: '1.5rem', fontFamily: 'Orbitron, sans-serif' }}>
-            <div style={{ fontSize: '3.5rem', color: '#9ACD32', opacity: 0.3 }}>⏳</div>
-            <h1 style={{ fontSize: '2rem', margin: 0, color: '#9ACD32', letterSpacing: '2px', textShadow: '0 0 20px rgba(154,205,50,0.3)' }}>EVENT NOT STARTED</h1>
+            <div style={{ fontSize: '3.5rem', color: '#9ACD32', opacity: 0.3 }}>
+                {error.toLowerCase().includes('started') ? '⏳' : '🔒'}
+            </div>
+            <h1 style={{ fontSize: '2rem', margin: 0, color: '#9ACD32', letterSpacing: '2px', textShadow: '0 0 20px rgba(154,205,50,0.3)', textTransform: 'uppercase' }}>
+                {error.toLowerCase().includes('started') ? 'EVENT NOT STARTED' : 'ACCESS DENIED'}
+            </h1>
             <p style={{ fontSize: '1rem', color: '#888', maxWidth: '500px', lineHeight: '1.6', fontFamily: 'Inter, sans-serif', fontWeight: 'normal' }}>
-                This event has not started yet. Challenges will become available once the event goes live.
+                {error}
             </p>
             <button onClick={() => navigate(`/event/${id}`)} style={{ padding: '10px 24px', background: 'transparent', border: '1px solid rgba(154,205,50,0.4)', color: '#9ACD32', borderRadius: '8px', cursor: 'pointer', fontFamily: 'Orbitron, sans-serif', fontWeight: 'bold', letterSpacing: '1px' }}>
                 ← BACK TO EVENT
@@ -363,121 +333,6 @@ const Challenges = () => {
                     <p style={{ color: '#555' }}>No challenges in this category yet.</p>
                 </div>
             )}
-
-            {/* ── ORIGINAL MODAL ── */}
-            <AnimatePresence>
-                {selectedChallenge && (
-                    <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                        className="modal-overlay"
-                        onClick={() => setSelectedChallenge(null)}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, y: 50 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 50 }}
-                            className="modal-content"
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <button className="modal-close" onClick={() => setSelectedChallenge(null)}>
-                                <FaTimesCircle />
-                            </button>
-
-                            <div className="modal-top-stats">
-                                <div className="mini-stat stat-first-blood">
-                                    <span className="mini-label">First Blood:</span>
-                                    <span className="mini-value">{selectedChallenge.first_blood ? selectedChallenge.first_blood.username : 'None'}</span>
-                                </div>
-                                <div className="mini-stat stat-solves">
-                                    <span className="mini-label">Solves:</span>
-                                    <span className="mini-value">{selectedChallenge.solves_count || 0}</span>
-                                </div>
-                            </div>
-
-                            <div className="modal-header">
-                                <h2 className="modal-title">{selectedChallenge.title}</h2>
-                                <div className="modal-meta">
-                                    <span>// {selectedChallenge.category}</span>
-                                    <span>// {selectedChallenge.points} PTS</span>
-                                    <span>// {selectedChallenge.difficulty}</span>
-                                </div>
-                            </div>
-
-                            <div className="modal-body-grid">
-                                <div className="modal-main">
-                                    <div className="modal-desc">{selectedChallenge.description}</div>
-
-                                    {selectedChallenge.flag_format && (
-                                        <div style={{ marginBottom: '8px', fontFamily: 'monospace', fontSize: '0.95rem', color: '#fff', opacity: 0.8 }}>
-                                            Flag Format: {selectedChallenge.flag_format}
-                                        </div>
-                                    )}
-
-                                    <form onSubmit={submitFlag} className="flag-submission-form">
-                                        <div className="flag-form" style={{ flexDirection: 'column' }}>
-                                            <div style={{ display: 'flex', width: '100%', gap: '10px' }}>
-                                                <input
-                                                    type="text" value={flagInput}
-                                                    onChange={(e) => setFlagInput(e.target.value)}
-                                                    placeholder="Hack!t{...}" className="flag-input"
-                                                    disabled={selectedChallenge.is_solved || eventStatus !== 'live'}
-                                                />
-                                                <button type="submit" className="submit-btn small"
-                                                    disabled={selectedChallenge.is_solved || eventStatus !== 'live'}>
-                                                    {selectedChallenge.is_solved ? 'Solved' : eventStatus !== 'live' ? eventStatus.toUpperCase() : 'Submit'}
-                                                </button>
-                                            </div>
-                                            {eventStatus !== 'live' && <div style={{ color: '#ff9500', fontSize: '0.85rem', marginTop: '10px', textAlign: 'center', width: '100%' }}>Submissions are disabled because the event is {eventStatus}.</div>}
-                                        </div>
-
-                                        <AnimatePresence>
-                                            {submitStatus === 'success' && (
-                                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="submission-status status-success">
-                                                    <FaCheckCircle /> ROOT ACCESS GRANTED. FLAG ACCEPTED.
-                                                </motion.div>
-                                            )}
-                                            {submitStatus === 'error' && (
-                                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="submission-status status-error">
-                                                    <FaTimesCircle /> ACCESS DENIED. KEY INVALID.
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </form>
-                                </div>
-
-                                <div className="modal-sidebar">
-                                    <div className="extra-item-sidebar">
-                                        <span className="extra-label">URL:</span>
-                                        {selectedChallenge.url
-                                            ? <a href={selectedChallenge.url} target="_blank" rel="noopener noreferrer" className="extra-link">Click Here</a>
-                                            : <span className="extra-none">Not Provided</span>}
-                                    </div>
-                                    <div className="extra-item-sidebar">
-                                        <span className="extra-label">FILE:</span>
-                                        {selectedChallenge.files?.length > 0
-                                            ? selectedChallenge.files.map((file, i) => <a key={i} href={file.url} download className="extra-link">Click Here</a>)
-                                            : <span className="extra-none">Not Provided</span>}
-                                    </div>
-                                    <div className="modal-hints">
-                                        <h4 className="hints-title">HINTS</h4>
-                                        {selectedChallenge.hints?.length > 0 ? (
-                                            selectedChallenge.hints.map(hint => (
-                                                <div key={hint.id} className={`hint-item ${hint.is_unlocked ? 'unlocked' : 'locked'}`}>
-                                                    {hint.is_unlocked
-                                                        ? <div className="hint-content">{hint.content}</div>
-                                                        : <button className="unlock-hint-btn" onClick={() => unlockHint(hint.id, hint.cost)}>
-                                                            <FaLock /> Unlock Hint (-{hint.cost} pts)
-                                                        </button>}
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <span className="extra-none">No Hints</span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </div>
     );
 };

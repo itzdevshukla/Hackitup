@@ -61,6 +61,12 @@ class Event(models.Model):
     is_rejected = models.BooleanField(default=False)
     accepting_writeups = models.BooleanField(default=False)
 
+    # ===============================
+    # TEAM MODE
+    # ===============================
+    is_team_mode  = models.BooleanField(default=False, help_text="Enable team-based scoring for this event")
+    max_team_size = models.PositiveIntegerField(default=4, help_text="Max members per team (team mode only)")
+
     access_code = models.CharField(max_length=50, unique=True, blank=True)
 
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)

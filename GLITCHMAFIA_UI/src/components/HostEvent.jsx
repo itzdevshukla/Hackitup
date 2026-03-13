@@ -17,14 +17,16 @@ const HostEvent = () => {
         registrationStartDate: '',
         registrationStartTime: '',
         registrationEndDate: '',
-        registrationEndTime: ''
+        registrationEndTime: '',
+        isTeamMode: false,
+        maxTeamSize: 4
     });
 
     const handleChange = (e) => {
-        const { name, value } = e.target;
+        const { name, value, type, checked } = e.target;
         setFormData(prev => ({
             ...prev,
-            [name]: value
+            [name]: type === 'checkbox' ? checked : value
         }));
     };
 
@@ -90,7 +92,8 @@ const HostEvent = () => {
                 setFormData({
                     eventName: '', venue: '', description: '', ctfType: 'Jeopardy Style', participants: '',
                     startDate: '', startTime: '', endDate: '', endTime: '',
-                    registrationStartDate: '', registrationStartTime: '', registrationEndDate: '', registrationEndTime: ''
+                    registrationStartDate: '', registrationStartTime: '', registrationEndDate: '', registrationEndTime: '',
+                    isTeamMode: false, maxTeamSize: 4
                 });
                 setStep(1);
             } else {
@@ -225,6 +228,42 @@ const HostEvent = () => {
                                             required
                                         />
                                     </div>
+                                </div>
+
+                                <div style={{ marginTop: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', padding: '1.5rem', background: 'rgba(57, 255, 20, 0.05)', border: '1px solid rgba(57, 255, 20, 0.2)', borderRadius: '8px' }}>
+                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label className="form-label" style={{ display: 'block', color: '#9ACD32', fontWeight: 'bold', marginBottom: '8px' }}>Event Mode</label>
+                                        <select
+                                            name="isTeamMode"
+                                            className="form-input"
+                                            value={formData.isTeamMode}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, isTeamMode: e.target.value === 'true' }))}
+                                            style={{ backgroundColor: 'rgba(10, 10, 10, 0.6)', color: 'white', cursor: 'pointer' }}
+                                        >
+                                            <option value="false">Solo</option>
+                                            <option value="true">Team Based</option>
+                                        </select>
+                                    </div>
+
+                                    <AnimatePresence>
+                                        {formData.isTeamMode && (
+                                            <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
+                                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                                    <label className="form-label" style={{ display: 'block', color: '#9ACD32', fontWeight: 'bold', marginBottom: '8px' }}>Max Team Size</label>
+                                                    <input
+                                                        type="number"
+                                                        name="maxTeamSize"
+                                                        className="form-input"
+                                                        value={formData.maxTeamSize}
+                                                        onChange={handleChange}
+                                                        min="2"
+                                                        max="100"
+                                                        required={formData.isTeamMode}
+                                                    />
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             </div>
 
@@ -372,6 +411,12 @@ const HostEvent = () => {
                                     <div>
                                         <p style={{ fontSize: '0.8rem', color: '#666', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '5px' }}>Capacity</p>
                                         <p style={{ color: '#fff', fontSize: '1.1rem' }}>{formData.participants || '—'} participants</p>
+                                    </div>
+                                    <div>
+                                        <p style={{ fontSize: '0.8rem', color: '#666', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '5px' }}>Team Mode</p>
+                                        <p style={{ color: formData.isTeamMode ? '#666' : '#888', fontSize: '1.1rem' }}>
+                                            {formData.isTeamMode ? `Enabled (Max ${formData.maxTeamSize})` : 'Disabled'}
+                                        </p>
                                     </div>
                                 </div>
 

@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Home from './components/Home';
 import About from './components/About';
@@ -15,6 +16,7 @@ import ClassicLeaderboard from './components/ClassicLeaderboard';
 
 import EventDetails from './components/EventDetails';
 import Challenges from './components/Challenges';
+import UserChallengeDetail from './components/UserChallengeDetail';
 import AdminDashboard from './components/AdminDashboard';
 import EventAnnouncements from './components/EventAnnouncements';
 import EventWriteUps from './components/EventWriteUps';
@@ -24,6 +26,41 @@ import EventArenaLayout from './components/EventArenaLayout';
 import UserOverview from './components/UserOverview';
 import RegisteredEvents from './components/RegisteredEvents';
 import NotFound from './components/NotFound';
+import TeamSection from './components/TeamSection';
+import { useParams } from 'react-router-dom';
+
+// Wrapper to parse the event ID and pass username
+const TeamSectionWrapper = () => {
+  const { id } = useParams();
+  const { user } = useAuth();
+
+  // Need to get is_team_mode and max_team_size somehow - easiest is through an API call inside TeamSection
+  // But since we just need max_team_size, we'll fetch it inside the wrapper
+  const [eventData, setEventData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/dashboard/event/${id}/`)
+      .then(res => res.json())
+      .then(data => {
+        setEventData(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [id]);
+
+  if (loading) return <div style={{ padding: '2rem', color: '#9ACD32', fontFamily: 'monospace' }}>LOADING TEAM INTEL...</div>;
+
+  if (eventData && !eventData.is_team_mode) {
+    return (
+      <div style={{ padding: '3rem', textAlign: 'center', color: '#ff4d4d', fontFamily: 'Orbitron', fontSize: '1.2rem' }}>
+        TEAM MODE IS DISABLED FOR THIS EVENT.
+      </div>
+    );
+  }
+
+  return <TeamSection eventId={id} maxTeamSize={eventData?.max_team_size || 4} currentUsername={user?.username} />;
+};
 
 function App() {
   return (
@@ -59,9 +96,10 @@ function App() {
             </UserDashboardLayout>
           } />
 
-          {/* Event Arena – dedicated sidebar layout */}
           <Route path="/event/:id/*" element={<EventArenaLayout />}>
+            <Route path="team" element={<TeamSectionWrapper />} />
             <Route path="challenges" element={<Challenges />} />
+            <Route path="challenges/:challengeId" element={<UserChallengeDetail />} />
             <Route path="leaderboard" element={<EventLeaderboard />} />
 
             <Route path="announcements" element={<EventAnnouncements />} />
